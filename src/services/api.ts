@@ -11,10 +11,10 @@ export const analyzeLiveFrame = async (frameBase64: string, expectedPart: string
       body: JSON.stringify({ image: frameBase64, part: expectedPart }),
     });
 
-    // Parse the error if the response is not OK (e.g., Status 429 or 500)
     if (!response.ok) {
+      // Grab the EXACT error text from our Vercel catch block
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `HTTP Error ${response.status}`);
+      throw new Error(errorData.error || `HTTP ${response.status}`);
     }
 
     const data = await response.json();
@@ -22,11 +22,12 @@ export const analyzeLiveFrame = async (frameBase64: string, expectedPart: string
     
   } catch (error: any) {
     console.error("Failed to ping AI Bouncer:", error);
-    // We now return the EXACT error message so the UI can display it
+    
+    // Pass the raw error straight to the CustomCamera.tsx state
     return { 
       isPerfect: false, 
-      arabicInstruction: 'خطأ في الاتصال', // "Connection Error"
-      systemError: error.message // Passing the raw error string up to the camera
+      arabicInstruction: 'تم إيقاف الاتصال', // "Connection Stopped"
+      systemError: `Google API Error: ${error.message}` 
     };
   }
 };

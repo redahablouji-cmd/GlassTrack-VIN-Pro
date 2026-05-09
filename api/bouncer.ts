@@ -40,6 +40,8 @@ export default async function handler(req: any, res: any) {
 
   } catch (error: any) {
     console.error("AI Bouncer Error:", error);
-    return res.status(500).json({ error: error.message });
+    // Force the exact Google error message to be sent to the frontend
+    const errorMessage = error?.message || error?.toString() || "Unknown AI Error";
+    return res.status(500).json({ error: errorMessage });
   }
 }

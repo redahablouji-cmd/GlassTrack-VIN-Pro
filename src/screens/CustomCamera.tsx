@@ -13,13 +13,11 @@ export default function CustomCamera({ instructionLabel, expectedPart, onCapture
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
   const [isReady, setIsReady] = useState(false);
-  const [isAngleCorrect, setIsAngleCorrect] = useState(false);
-  const [liveFeedback, setLiveFeedback] = useState('جاري تجهيز كاميرا الذكاء الاصطناعي...'); 
-  const [isPulsing, setIsPulsing] = useState(false);
-  
-  // NEW: The state for our live Debug Console
+  const [isValidating, setIsValidating] = useState(false); // NEW: Tracks if we are waiting for the AI
+  const [liveFeedback, setLiveFeedback] = useState('وجه الكاميرا والتقط الصورة'); // "Point camera and take photo"
   const [systemError, setSystemError] = useState<string | null>(null);
 
+  // 1. Start the Camera (No AI pulsing here anymore!)
   useEffect(() => {
     const startCamera = async () => {
       try {
@@ -27,7 +25,6 @@ export default function CustomCamera({ instructionLabel, expectedPart, onCapture
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           setIsReady(true);
-          setLiveFeedback('وجه الكاميرا نحو الجزء المطلوب'); 
         }
       } catch (err) {
         setLiveFeedback('خطأ: لا يمكن الوصول للكاميرا');
@@ -43,65 +40,51 @@ export default function CustomCamera({ instructionLabel, expectedPart, onCapture
     };
   }, []);
 
-  useEffect(() => {
-    if (!isReady || isAngleCorrect) return;
+  // 2. The Manual Capture & AI Validation
+  const handleManualCapture = async () => {
+    if (!videoRef.current || !canvasRef.current || isValidating) return;
 
-    const pulseInterval = setInterval(async () => {
-      if (isPulsing || !videoRef.current || !canvasRef.current) return;
-      
-      setIsPulsing(true);
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      
-      canvas.width = 400; 
-      canvas.height = (400 * video.videoHeight) / video.videoWidth;
-      
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const frameBase64 = canvas.toDataURL('image/jpeg', 0.4);
+    // Freeze UI and show loading state
+    setIsValidating(true);
+    setLiveFeedback('جاري فحص الصورة بالذكاء الاصطناعي...'); // "Analyzing photo with AI..."
+    setSystemError(null);
 
-        try {
-          // Send to Bouncer
-          const aiResponse: any = await analyzeLiveFrame(frameBase64, expectedPart);
-          
-          // NEW: Catch and display the raw system error from Vercel/Gemini
-          if (aiResponse.systemError) {
-            setSystemError(aiResponse.systemError);
-          } else {
-            setSystemError(null); // Clear errors if it connects successfully
-          }
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
 
-          if (aiResponse.isPerfect) {
-            setIsAngleCorrect(true);
-            setLiveFeedback('✅ الزاوية صحيحة، التقط الصورة الآن'); 
-            clearInterval(pulseInterval); 
-          } else {
-            setLiveFeedback(aiResponse.arabicInstruction); 
-          }
-        } catch (error) {
-          setSystemError("Local Network Error");
-        } finally {
-          setIsPulsing(false);
+    if (ctx) {
+      // Capture a high-quality frame for the AI to check
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const highResBase64 = canvas.toDataURL('image/jpeg', 0.8); // Good quality for analysis
+
+      try {
+        // Send ONE request to the Bouncer
+        const aiResponse: any = await analyzeLiveFrame(highResBase64, expectedPart);
+
+        if (aiResponse.systemError) {
+          setSystemError(aiResponse.systemError);
+          setLiveFeedback('حدث خطأ، يرجى المحاولة مرة أخرى');
+          setIsValidating(false);
+          return;
         }
-      }
-    // CHANGED: 4500ms (4.5 seconds). This equals ~13 requests per minute. 
-    // This safely keeps you under the 15 RPM Google Free Tier limit!
-    }, 4500); 
 
-    return () => clearInterval(pulseInterval);
-  }, [isReady, isAngleCorrect, isPulsing, expectedPart]);
-
-  const takePhoto = () => {
-    if (videoRef.current && canvasRef.current && isAngleCorrect) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        onCapture(canvas.toDataURL('image/jpeg', 0.9)); 
+        if (aiResponse.isPerfect) {
+          setLiveFeedback('✅ صورة ممتازة!');
+          // Wait half a second so they see the success message, then save and close
+          setTimeout(() => {
+            onCapture(highResBase64);
+          }, 500);
+        } else {
+          // AI rejected it. Show the Arabic instruction and let them try again.
+          setLiveFeedback(`❌ ${aiResponse.arabicInstruction}`);
+          setIsValidating(false); // Unfreeze the button so they can retake
+        }
+      } catch (error) {
+        setSystemError("Local Network Error");
+        setIsValidating(false);
       }
     }
   };
@@ -114,7 +97,7 @@ export default function CustomCamera({ instructionLabel, expectedPart, onCapture
         <span className="text-white font-bold text-xs bg-black/50 px-3 py-1 rounded tracking-wider">{instructionLabel}</span>
       </div>
 
-      {/* NEW: LIVE DEBUG CONSOLE */}
+      {/* Debug Console */}
       {systemError && (
         <div className="absolute top-20 w-full px-4 z-30">
           <div className="bg-red-900/90 border border-red-500 rounded-lg p-3 shadow-2xl">
@@ -124,30 +107,45 @@ export default function CustomCamera({ instructionLabel, expectedPart, onCapture
         </div>
       )}
 
-      <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+      {/* Camera Feed */}
+      <video 
+        ref={videoRef} 
+        autoPlay 
+        playsInline 
+        muted 
+        // Darken the video slightly while validating so it feels like it's processing
+        className={`w-full h-full object-cover transition-opacity ${isValidating ? 'opacity-50' : 'opacity-100'}`} 
+      />
       <canvas ref={canvasRef} className="hidden" />
 
+      {/* AR Overlay Box */}
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none p-8 z-10">
         <div className={`w-full max-w-sm aspect-[4/3] border-4 transition-colors duration-300 rounded-2xl relative ${
-          isAngleCorrect ? 'border-green-500 bg-green-500/10' : 'border-blue-500 bg-blue-500/10'
+          isValidating ? 'border-yellow-400 bg-yellow-400/10 animate-pulse' : 'border-blue-500 bg-blue-500/10'
         }`} />
 
         <div className="mt-8 bg-black/80 backdrop-blur-md px-6 py-4 rounded-xl text-center border border-white/20">
-          <p className={`font-bold text-lg dir-rtl ${isAngleCorrect ? 'text-green-400' : 'text-blue-300'}`}>
+          <p className={`font-bold text-lg dir-rtl ${isValidating ? 'text-yellow-400' : 'text-blue-300'}`}>
             {liveFeedback}
           </p>
         </div>
       </div>
 
+      {/* Capture Button */}
       <div className="absolute bottom-0 w-full pb-12 pt-6 flex justify-center items-center z-20 bg-gradient-to-t from-black via-black/50 to-transparent">
         <button 
-          onClick={takePhoto}
-          disabled={!isAngleCorrect}
+          onClick={handleManualCapture}
+          disabled={isValidating || !isReady}
           className={`w-20 h-20 rounded-full border-4 flex items-center justify-center transition-all ${
-            isAngleCorrect ? 'border-green-500 bg-green-500/20' : 'border-gray-500 bg-gray-500/20 opacity-40'
+            isValidating ? 'border-gray-500 bg-gray-500/20 cursor-wait' : 'border-white bg-white/20 active:scale-95'
           }`}
         >
-          <div className={`w-14 h-14 rounded-full ${isAngleCorrect ? 'bg-white' : 'bg-gray-400'}`} />
+          {isValidating ? (
+            // Simple loading spinner inside the button
+            <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
+          ) : (
+            <div className="w-14 h-14 rounded-full bg-white" />
+          )}
         </button>
       </div>
     </div>
