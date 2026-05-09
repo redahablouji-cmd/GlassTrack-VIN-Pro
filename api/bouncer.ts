@@ -11,7 +11,7 @@ export default async function handler(req: any, res: any) {
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
     // Explicitly using the Flash model for the live camera pulse
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const prompt = `You are an expert Auto Glass AI Bouncer. 
     The technician is trying to capture this specific part/view: "${part}".
