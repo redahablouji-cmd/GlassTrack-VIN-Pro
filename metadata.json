@@ -1,0 +1,8 @@
+{
+  "name": "GlassTrack VIN Pro",
+  "description": "B2B mobile capture tool for vehicle technicians with glassmorphism UI and secure modular architecture.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": []
+}
