@@ -7,28 +7,26 @@ export const analyzeLiveFrame = async (frameBase64: string, expectedPart: string
   try {
     const response = await fetch('/api/bouncer', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        image: frameBase64,
-        part: expectedPart,
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: frameBase64, part: expectedPart }),
     });
 
+    // Parse the error if the response is not OK (e.g., Status 429 or 500)
     if (!response.ok) {
-      throw new Error(`Server responded with status ${response.status}`);
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP Error ${response.status}`);
     }
 
     const data = await response.json();
     return data as { isPerfect: boolean; arabicInstruction: string };
     
-  } catch (error) {
+  } catch (error: any) {
     console.error("Failed to ping AI Bouncer:", error);
-    // Fallback if the network drops temporarily
+    // We now return the EXACT error message so the UI can display it
     return { 
       isPerfect: false, 
-      arabicInstruction: 'جارٍ إعادة الاتصال بالذكاء الاصطناعي...' // "Reconnecting to AI..."
+      arabicInstruction: 'خطأ في الاتصال', // "Connection Error"
+      systemError: error.message // Passing the raw error string up to the camera
     };
   }
 };
