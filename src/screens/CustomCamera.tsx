@@ -1,9 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
+// Import the live Edge AI models
+import * as tf from '@tensorflow/tfjs';
+import * as cocoSsd from '@tensorflow-models/coco-ssd';
+// Import your Gemini Bouncer from the api.ts file we made earlier
 import { analyzeLiveFrame } from '../services/api';
 
 interface CustomCameraProps {
   instructionLabel: string;
-  expectedPart: string; // Tells the AI what it should be looking for
+  expectedPart: string;
   onCapture: (base64Image: string) => void;
   onCancel: () => void;
 }
@@ -13,24 +17,35 @@ export default function CustomCamera({ instructionLabel, expectedPart, onCapture
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
   const [isReady, setIsReady] = useState(false);
+  const [model, setModel] = useState<cocoSsd.ObjectDetection | null>(null);
+  
+  const [isCarDetected, setIsCarDetected] = useState(false);
   const [isAngleCorrect, setIsAngleCorrect] = useState(false);
-  const [liveFeedback, setLiveFeedback] = useState('جاري تحليل الصورة... يرجى توجيه الكاميرا'); // "Analyzing image... please point camera"
-  const [isProcessingPulse, setIsProcessingPulse] = useState(false);
+  const [liveFeedback, setLiveFeedback] = useState('جاري تحميل الذكاء الاصطناعي الكاميرا...'); // "Loading Camera AI..."
+  const [isCheckingGemini, setIsCheckingGemini] = useState(false);
 
-  // 1. Start the Video Feed
+  // 1. Start Camera AND Load the Live AI into the phone
   useEffect(() => {
-    const startCamera = async () => {
+    const setupAIAndCamera = async () => {
       try {
+        // Load TensorFlow Object Detection Model
+        await tf.ready();
+        const loadedModel = await cocoSsd.load();
+        setModel(loadedModel);
+        setLiveFeedback('ابحث عن السيارة...'); // "Look for a car..."
+
+        // Start the Camera
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           setIsReady(true);
         }
       } catch (err) {
-        alert("Camera permission denied.");
+        console.error(err);
+        setLiveFeedback('فشل الوصول للكاميرا'); // "Camera access failed"
       }
     };
-    startCamera();
+    setupAIAndCamera();
 
     return () => {
       if (videoRef.current?.srcObject) {
@@ -40,17 +55,43 @@ export default function CustomCamera({ instructionLabel, expectedPart, onCapture
     };
   }, []);
 
-  // 2. The AI Pulse (Continuous Frame Sampling)
+  // 2. The Live AI Loop (Runs at 30 Frames Per Second inside the browser)
   useEffect(() => {
-    if (!isReady || isAngleCorrect) return;
+    if (!isReady || !model || !videoRef.current || isAngleCorrect) return;
+
+    let animationFrameId: number;
+
+    const detectLiveObjects = async () => {
+      if (videoRef.current && videoRef.current.readyState === 4) {
+        // AI scans the live video feed
+        const predictions = await model.detect(videoRef.current);
+        
+        // Is there a car or truck in the frame?
+        const foundCar = predictions.some(p => p.class === 'car' || p.class === 'truck');
+        
+        setIsCarDetected(foundCar);
+
+        if (!foundCar) {
+          setLiveFeedback('لا توجد سيارة في الإطار'); // "No car in frame" - IT WILL FAIL IF IN YOUR OFFICE!
+        } else if (!isCheckingGemini) {
+          setLiveFeedback('تم العثور على سيارة. جاري فحص الزاوية...'); // "Car found. Checking angle..."
+        }
+      }
+      // Loop this forever until we get the perfect shot
+      animationFrameId = requestAnimationFrame(detectLiveObjects);
+    };
+
+    detectLiveObjects();
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [isReady, model, isCheckingGemini, isAngleCorrect]);
+
+  // 3. The Gemini Pulse (Only runs IF a car is detected)
+  useEffect(() => {
+    if (!isCarDetected || isAngleCorrect || isCheckingGemini) return;
 
     const pulseInterval = setInterval(async () => {
-      if (isProcessingPulse) return; // Wait if the previous AI check is still running
-      
       if (videoRef.current && canvasRef.current) {
-        setIsProcessingPulse(true);
-        
-        // Grab a silent frame
+        setIsCheckingGemini(true);
         const video = videoRef.current;
         const canvas = canvasRef.current;
         canvas.width = video.videoWidth;
@@ -59,34 +100,32 @@ export default function CustomCamera({ instructionLabel, expectedPart, onCapture
         const ctx = canvas.getContext('2d');
         if (ctx) {
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const frameBase64 = canvas.toDataURL('image/jpeg', 0.5); // Lower quality for faster AI pulse
+          const frameBase64 = canvas.toDataURL('image/jpeg', 0.5);
 
           try {
-            // === THIS IS WHERE IT HITS YOUR REAL AI ===
-            // We are calling a function from your api.ts file
+            // Send to Gemini HQ (from your api.ts file)
             const aiResponse = await analyzeLiveFrame(frameBase64, expectedPart);
             
             if (aiResponse.isPerfect) {
               setIsAngleCorrect(true);
               setLiveFeedback('✅ الزاوية صحيحة، التقط الصورة الآن'); // "Angle correct, capture now"
-              clearInterval(pulseInterval); // Stop pulsing once we have the green light
+              clearInterval(pulseInterval); 
             } else {
-              // Update the screen with whatever the AI told them to do
-              setLiveFeedback(aiResponse.arabicInstruction);
+              setLiveFeedback(aiResponse.arabicInstruction); // "Tilt down", "Step back", etc.
             }
           } catch (error) {
-            console.error("AI Pulse failed", error);
+             console.error("Gemini Check Failed", error);
           } finally {
-            setIsProcessingPulse(false);
+            setIsCheckingGemini(false);
           }
         }
       }
-    }, 2000); // Check every 2 seconds
+    }, 2500); // Pulse every 2.5 seconds to save API costs
 
     return () => clearInterval(pulseInterval);
-  }, [isReady, isAngleCorrect, isProcessingPulse, expectedPart]);
+  }, [isCarDetected, isAngleCorrect, isCheckingGemini, expectedPart]);
 
-  // 3. The Final High-Res Capture
+  // 4. Capture Final Image
   const takePhoto = () => {
     if (videoRef.current && canvasRef.current && isAngleCorrect) {
       const video = videoRef.current;
@@ -94,48 +133,32 @@ export default function CustomCamera({ instructionLabel, expectedPart, onCapture
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const highResBase64 = canvas.toDataURL('image/jpeg', 0.9);
-        onCapture(highResBase64); 
+        onCapture(canvas.toDataURL('image/jpeg', 0.9)); 
       }
     }
-  };
-
-  // Mock function representing your api.ts call
-  // We will replace this with your actual Gemini API connection next!
-  const analyzeLiveFrame = async (frame: string, part: string) => {
-    return new Promise<{isPerfect: boolean, arabicInstruction: string}>((resolve) => {
-      // For now, it will tell you it's wrong for 4 seconds, then turn green, just to show the text changing.
-      setTimeout(() => {
-        const randomFailures = [
-          "الصورة قريبة جداً، ارجع للخلف" , // "Too close, step back"
-          "لا يمكن رؤية الزجاج بشكل كامل", // "Cannot see the glass fully"
-          "الرجاء إمالة الهاتف قليلاً" // "Please tilt the phone slightly"
-        ];
-        resolve({
-          isPerfect: Math.random() > 0.7, 
-          arabicInstruction: randomFailures[Math.floor(Math.random() * randomFailures.length)]
-        });
-      }, 500);
-    });
   };
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col">
       <div className="absolute top-0 w-full p-6 flex justify-between items-center z-20">
-        <button onClick={onCancel} className="text-white font-bold text-sm bg-black/50 px-4 py-2 rounded-full">✕ إغلاق</button>
-        <span className="text-white font-bold tracking-wider text-sm uppercase bg-black/50 px-3 py-1 rounded">{instructionLabel}</span>
+        <button onClick={onCancel} className="text-white font-bold text-sm bg-red-600 px-4 py-2 rounded-full">✕ إغلاق</button>
+        <span className="text-white font-bold text-sm bg-black/50 px-3 py-1 rounded">{instructionLabel}</span>
       </div>
 
-      <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+      <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
       <canvas ref={canvasRef} className="hidden" />
 
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none p-8 z-10">
         <div className={`w-full max-w-sm aspect-[4/3] border-4 transition-colors duration-300 rounded-2xl relative ${
-          isAngleCorrect ? 'border-green-500 bg-green-500/10' : 'border-red-500 bg-red-500/10'
+          !isCarDetected ? 'border-red-600 bg-red-600/10' : 
+          isAngleCorrect ? 'border-green-500 bg-green-500/10' : 'border-yellow-400 bg-yellow-400/10'
         }`} />
 
-        <div className="mt-8 bg-black/80 backdrop-blur-md px-6 py-4 rounded-xl text-center border border-white/20 shadow-2xl max-w-xs">
-          <p className={`font-bold text-lg dir-rtl ${isAngleCorrect ? 'text-green-400' : 'text-white'}`}>
+        <div className="mt-8 bg-black/80 backdrop-blur-md px-6 py-4 rounded-xl text-center border border-white/20">
+          <p className={`font-bold text-lg dir-rtl ${
+            !isCarDetected ? 'text-red-500' : 
+            isAngleCorrect ? 'text-green-400' : 'text-yellow-400'
+          }`}>
             {liveFeedback}
           </p>
         </div>
@@ -146,7 +169,7 @@ export default function CustomCamera({ instructionLabel, expectedPart, onCapture
           onClick={takePhoto}
           disabled={!isAngleCorrect}
           className={`w-20 h-20 rounded-full border-4 flex items-center justify-center transition-all ${
-            isAngleCorrect ? 'border-green-500 bg-green-500/20 active:scale-95' : 'border-gray-500 bg-gray-500/20 opacity-50'
+            isAngleCorrect ? 'border-green-500 bg-green-500/20 shadow-[0_0_20px_rgba(34,197,94,0.5)]' : 'border-gray-500 bg-gray-500/20 opacity-40'
           }`}
         >
           <div className={`w-14 h-14 rounded-full ${isAngleCorrect ? 'bg-white' : 'bg-gray-400'}`} />
