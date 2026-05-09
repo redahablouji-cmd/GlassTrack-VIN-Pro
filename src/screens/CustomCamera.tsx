@@ -1,144 +1,157 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { analyzeLiveFrame } from '../services/api';
 
-// Props to tell the camera what we are looking for
 interface CustomCameraProps {
   instructionLabel: string;
-  arabicGuidance: string;
+  expectedPart: string; // Tells the AI what it should be looking for
   onCapture: (base64Image: string) => void;
   onCancel: () => void;
 }
 
-export default function CustomCamera({ instructionLabel, arabicGuidance, onCapture, onCancel }: CustomCameraProps) {
+export default function CustomCamera({ instructionLabel, expectedPart, onCapture, onCancel }: CustomCameraProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
   const [isReady, setIsReady] = useState(false);
-  
-  // This simulates the Gyroscope/AI check. 
-  // In reality, you hook this up to the window.addEventListener('deviceorientation')
   const [isAngleCorrect, setIsAngleCorrect] = useState(false);
+  const [liveFeedback, setLiveFeedback] = useState('جاري تحليل الصورة... يرجى توجيه الكاميرا'); // "Analyzing image... please point camera"
+  const [isProcessingPulse, setIsProcessingPulse] = useState(false);
 
+  // 1. Start the Video Feed
   useEffect(() => {
-    // 1. Request raw camera access from the user's browser
     const startCamera = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' } // Forces the back camera
-        });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           setIsReady(true);
         }
       } catch (err) {
-        console.error("Camera access denied or failed:", err);
-        alert("Camera permission is required to use the AR Guide.");
+        alert("Camera permission denied.");
       }
     };
-
     startCamera();
 
-    // Cleanup: Turn off the camera when we close this view
     return () => {
-      if (videoRef.current && videoRef.current.srcObject) {
+      if (videoRef.current?.srcObject) {
         const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
         tracks.forEach(track => track.stop());
       }
     };
   }, []);
 
-  // 2. Simulate the AI / Gyroscope checking the angle
-  // (Moves from Red to Green after 3 seconds for this demo)
+  // 2. The AI Pulse (Continuous Frame Sampling)
   useEffect(() => {
-    if (isReady) {
-      const timer = setTimeout(() => setIsAngleCorrect(true), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [isReady]);
+    if (!isReady || isAngleCorrect) return;
 
-  // 3. Capture the exact frame from the video feed
+    const pulseInterval = setInterval(async () => {
+      if (isProcessingPulse) return; // Wait if the previous AI check is still running
+      
+      if (videoRef.current && canvasRef.current) {
+        setIsProcessingPulse(true);
+        
+        // Grab a silent frame
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const frameBase64 = canvas.toDataURL('image/jpeg', 0.5); // Lower quality for faster AI pulse
+
+          try {
+            // === THIS IS WHERE IT HITS YOUR REAL AI ===
+            // We are calling a function from your api.ts file
+            const aiResponse = await analyzeLiveFrame(frameBase64, expectedPart);
+            
+            if (aiResponse.isPerfect) {
+              setIsAngleCorrect(true);
+              setLiveFeedback('✅ الزاوية صحيحة، التقط الصورة الآن'); // "Angle correct, capture now"
+              clearInterval(pulseInterval); // Stop pulsing once we have the green light
+            } else {
+              // Update the screen with whatever the AI told them to do
+              setLiveFeedback(aiResponse.arabicInstruction);
+            }
+          } catch (error) {
+            console.error("AI Pulse failed", error);
+          } finally {
+            setIsProcessingPulse(false);
+          }
+        }
+      }
+    }, 2000); // Check every 2 seconds
+
+    return () => clearInterval(pulseInterval);
+  }, [isReady, isAngleCorrect, isProcessingPulse, expectedPart]);
+
+  // 3. The Final High-Res Capture
   const takePhoto = () => {
-    if (videoRef.current && canvasRef.current) {
+    if (videoRef.current && canvasRef.current && isAngleCorrect) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      
-      // Set canvas to match video resolution
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        // Convert to Base64 to send to our AI Bouncer
-        const base64Image = canvas.toDataURL('image/jpeg', 0.9);
-        
-        // At this exact moment, you would send base64Image to your Fast AI Bouncer.
-        // If it returns "Approved", you call onCapture().
-        // If it returns "Blurry", you show an Arabic alert and don't call onCapture().
-        onCapture(base64Image); 
+        const highResBase64 = canvas.toDataURL('image/jpeg', 0.9);
+        onCapture(highResBase64); 
       }
     }
   };
 
+  // Mock function representing your api.ts call
+  // We will replace this with your actual Gemini API connection next!
+  const analyzeLiveFrame = async (frame: string, part: string) => {
+    return new Promise<{isPerfect: boolean, arabicInstruction: string}>((resolve) => {
+      // For now, it will tell you it's wrong for 4 seconds, then turn green, just to show the text changing.
+      setTimeout(() => {
+        const randomFailures = [
+          "الصورة قريبة جداً، ارجع للخلف" , // "Too close, step back"
+          "لا يمكن رؤية الزجاج بشكل كامل", // "Cannot see the glass fully"
+          "الرجاء إمالة الهاتف قليلاً" // "Please tilt the phone slightly"
+        ];
+        resolve({
+          isPerfect: Math.random() > 0.7, 
+          arabicInstruction: randomFailures[Math.floor(Math.random() * randomFailures.length)]
+        });
+      }, 500);
+    });
+  };
+
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col">
-      
-      {/* Top Bar */}
-      <div className="absolute top-0 w-full p-6 flex justify-between items-center z-20 bg-gradient-to-b from-black/80 to-transparent">
-        <button onClick={onCancel} className="text-white font-bold text-sm bg-black/50 px-4 py-2 rounded-full">
-          ✕ إغلاق (Close)
-        </button>
-        <span className="text-white font-bold tracking-wider text-sm uppercase">{instructionLabel}</span>
+      <div className="absolute top-0 w-full p-6 flex justify-between items-center z-20">
+        <button onClick={onCancel} className="text-white font-bold text-sm bg-black/50 px-4 py-2 rounded-full">✕ إغلاق</button>
+        <span className="text-white font-bold tracking-wider text-sm uppercase bg-black/50 px-3 py-1 rounded">{instructionLabel}</span>
       </div>
 
-      {/* The Live Video Feed */}
-      <video 
-        ref={videoRef} 
-        autoPlay 
-        playsInline 
-        className="w-full h-full object-cover"
-      />
-
-      {/* Hidden Canvas for capturing the image */}
+      <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* AR Overlay (The Ghost Box & Red/Green Borders) */}
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none p-8 z-10">
-        
-        {/* The target box that changes color */}
         <div className={`w-full max-w-sm aspect-[4/3] border-4 transition-colors duration-300 rounded-2xl relative ${
           isAngleCorrect ? 'border-green-500 bg-green-500/10' : 'border-red-500 bg-red-500/10'
-        }`}>
-          {/* Crosshairs to look techy */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 border border-white/50 rounded-full flex items-center justify-center">
-            <div className="w-1 h-1 bg-white rounded-full"></div>
-          </div>
-        </div>
+        }`} />
 
-        {/* Live Arabic AI Guidance */}
-        <div className="mt-8 bg-black/70 backdrop-blur-md px-6 py-3 rounded-full text-center border border-white/10">
-          <p className={`font-bold text-lg dir-rtl ${isAngleCorrect ? 'text-green-400' : 'text-red-400'}`}>
-            {isAngleCorrect ? '✅ الزاوية صحيحة، التقط الصورة الآن' : arabicGuidance}
-          </p>
-          <p className="text-gray-300 text-xs mt-1">
-            {isAngleCorrect ? 'Angle correct, capture now.' : 'Adjusting positioning...'}
+        <div className="mt-8 bg-black/80 backdrop-blur-md px-6 py-4 rounded-xl text-center border border-white/20 shadow-2xl max-w-xs">
+          <p className={`font-bold text-lg dir-rtl ${isAngleCorrect ? 'text-green-400' : 'text-white'}`}>
+            {liveFeedback}
           </p>
         </div>
-
       </div>
 
-      {/* Bottom Capture Button Bar */}
-      <div className="absolute bottom-0 w-full pb-12 pt-6 flex justify-center items-center z-20 bg-gradient-to-t from-black/90 via-black/50 to-transparent">
+      <div className="absolute bottom-0 w-full pb-12 pt-6 flex justify-center items-center z-20 bg-gradient-to-t from-black via-black/50 to-transparent">
         <button 
           onClick={takePhoto}
           disabled={!isAngleCorrect}
           className={`w-20 h-20 rounded-full border-4 flex items-center justify-center transition-all ${
-            isAngleCorrect ? 'border-green-500 bg-green-500/20 active:bg-green-500' : 'border-gray-500 bg-gray-500/20 opacity-50 cursor-not-allowed'
+            isAngleCorrect ? 'border-green-500 bg-green-500/20 active:scale-95' : 'border-gray-500 bg-gray-500/20 opacity-50'
           }`}
         >
-          <div className={`w-14 h-14 rounded-full ${isAngleCorrect ? 'bg-white' : 'bg-gray-400'}`}></div>
+          <div className={`w-14 h-14 rounded-full ${isAngleCorrect ? 'bg-white' : 'bg-gray-400'}`} />
         </button>
       </div>
-
     </div>
   );
 }

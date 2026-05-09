@@ -1,43 +1,34 @@
-/**
- * FILE 2: API Service
- * Isolates network logic from UI components.
- * This is where you swap local simulation for Axios/Fetch calls to your backend.
- */
-
-interface UploadResponse {
-  isValid: boolean;
-  feedback: string;
-  autoApproved: boolean;
-  referenceCode: string;
-}
+// src/services/api.ts
 
 /**
- * FILE 2: API Service
- * Isolates all network requests and logic.
- * This is where you connect to the Supabase/Google AI Middleman.
+ * Sends a live camera frame to the Vercel AI Bouncer to get real-time Arabic guidance.
  */
-export const uploadVehiclePhotos = async (
-  vinImage: string, 
-  glassPosition: string, 
-  photosArray: string[]
-): Promise<UploadResponse> => {
-  console.log(`[API] Processing Payload...`, { 
-    vinImageIncluded: !!vinImage, 
-    glassPosition, 
-    extraPhotos: photosArray.length 
-  });
+export const analyzeLiveFrame = async (frameBase64: string, expectedPart: string) => {
+  try {
+    const response = await fetch('/api/bouncer', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        image: frameBase64,
+        part: expectedPart,
+      }),
+    });
 
-  // SIMULATED BACKEND PROCESSING (2 Seconds)
-  // Step 3 Hook: Replace this with:
-  // const response = await fetch(`${process.env.APP_URL}/api/bouncer/verify`, { method: 'POST', body: ... })
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        isValid: true,
-        feedback: "Approved",
-        autoApproved: true,
-        referenceCode: "PB AD CARRE + CAM"
-      });
-    }, 2000);
-  });
+    if (!response.ok) {
+      throw new Error(`Server responded with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data as { isPerfect: boolean; arabicInstruction: string };
+    
+  } catch (error) {
+    console.error("Failed to ping AI Bouncer:", error);
+    // Fallback if the network drops temporarily
+    return { 
+      isPerfect: false, 
+      arabicInstruction: 'جارٍ إعادة الاتصال بالذكاء الاصطناعي...' // "Reconnecting to AI..."
+    };
+  }
 };
