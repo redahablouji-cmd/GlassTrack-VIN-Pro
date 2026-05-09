@@ -32,3 +32,22 @@ export const analyzeLiveFrame = async (frameBase64: string, expectedPart: string
     };
   }
 };
+/**
+ * Sends all finalized photos to Gemini 3.1 Pro to extract the Eurocode/NAGS code.
+ */
+export const decodeVehiclePhotos = async (payload: any) => {
+  try {
+    const response = await fetch('/api/decoder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) throw new Error("Decoding failed");
+
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to decode:", error);
+    throw error;
+  }
+};

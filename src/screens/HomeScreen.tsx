@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import CustomCamera from './CustomCamera';
+import { analyzeLiveFrame, decodeVehiclePhotos } from '../services/api';
 
 // --- THE FORENSIC LOGIC ENGINE ---
 const DIAGNOSTIC_PROTOCOLS = {
@@ -75,10 +76,23 @@ export default function HomeScreen() {
     }
   };
 
-  const handleFinalUpload = () => {
+  const [isDecoding, setIsDecoding] = useState(false);
+  const [decodeResults, setDecodeResults] = useState<any>(null);
+
+  const handleFinalUpload = async () => {
+    setIsDecoding(true);
     const payload = { vinImage, position, isShattered, proofImages };
-    console.log("PAYLOAD READY FOR HQ BOUNCER:", payload);
-    alert("Payload ready! Check browser console.");
+    
+    try {
+      // Send the payload to Gemini 3.1 Pro
+      const result = await decodeVehiclePhotos(payload);
+      setDecodeResults(result);
+      console.log("DECODE SUCCESS:", result);
+    } catch (error) {
+      alert("Failed to decode the vehicle. Please try again.");
+    } finally {
+      setIsDecoding(false);
+    }
   };
 
   // Get current requirement list
