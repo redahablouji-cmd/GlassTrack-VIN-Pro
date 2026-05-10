@@ -11,7 +11,7 @@ export default async function handler(req: any, res: any) {
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
     // We strictly use 2.5 Flash here because it is the fastest model for image validation
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
     // === THE "GARAGE REALITY" GATEKEEPER PROMPT ===
     const gatekeeperInstructions = `You are an Image Validation Gatekeeper for an automotive B2B inventory system. 

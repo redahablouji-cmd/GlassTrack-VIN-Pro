@@ -54,27 +54,29 @@ export default function HomeScreen() {
   const currentChecklist = FORENSIC_UI_MAP[position][isShattered ? 'shattered' : 'intact'];
 
   // === UPGRADED SMART COMPRESSOR ===
+  // === BULLETPROOF COMPRESSOR ===
   const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
-      // 1. Safety check: Ensure it is actually an image
-      if (!file.type.startsWith('image/')) {
+      if (!file || !file.type.startsWith('image/')) {
         reject(new Error("الملف المحدد ليس صورة صالحة (Invalid file type)."));
         return;
       }
 
       const reader = new FileReader();
-      reader.readAsDataURL(file);
       
       reader.onload = (event) => {
         const base64Data = event.target?.result as string;
+        if (!base64Data) {
+          reject(new Error("فشل في تحويل الصورة (Base64 generation failed)."));
+          return;
+        }
+
         const img = new Image();
-        
         img.onload = () => {
           try {
             const canvas = document.createElement('canvas');
             const MAX_WIDTH = 1200;
             
-            // If image is already small, skip compression completely
             if (img.width <= MAX_WIDTH) {
               resolve(base64Data);
               return;
@@ -85,28 +87,30 @@ export default function HomeScreen() {
             canvas.height = img.height * scaleSize;
             
             const ctx = canvas.getContext('2d');
-            if (!ctx) throw new Error("Canvas context missing");
+            if (!ctx) throw new Error("Canvas rendering failed");
 
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            resolve(canvas.toDataURL('image/jpeg', 0.75));
+            
+            // Check if canvas successfully created the image
+            const finalImage = canvas.toDataURL('image/jpeg', 0.8);
+            if (finalImage === "data:,") throw new Error("Canvas produced empty image");
+            
+            resolve(finalImage);
           } catch (err) {
-            // FALLBACK 1: If canvas runs out of RAM, just send the original file
-            console.warn("Canvas RAM limit hit. Sending raw image.");
-            resolve(base64Data);
+            console.warn("Compression failed, sending original.", err);
+            resolve(base64Data); // Fallback to original
           }
         };
 
         img.onerror = () => {
-          // FALLBACK 2: If browser can't read HEIC/pixels, just send the original file
-          console.warn("Browser cannot read image format. Sending raw image.");
-          resolve(base64Data);
+          reject(new Error("Browser cannot read this image format (e.g., HEIC)."));
         };
 
-        // Trigger the image load
         img.src = base64Data;
       };
       
-      reader.onerror = () => reject(new Error("فشل قراءة الملف من الهاتف (Storage read error)."));
+      reader.onerror = () => reject(new Error("فشل قراءة الملف (Storage read error)."));
+      reader.readAsDataURL(file);
     });
   };
 
