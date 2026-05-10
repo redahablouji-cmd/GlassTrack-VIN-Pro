@@ -81,10 +81,29 @@ export default function HomeScreen() {
 
   const handleFinalUpload = async () => {
     setIsDecoding(true);
-    const payload = { vinImage, position, isShattered, proofImages };
     
+    // === THIS IS STEP 1: THE INTERLEAVED PAYLOAD ===
+    // We are attaching your strict forensic descriptions directly to the images
+    // before we send them to the API.
+    const payload = { 
+      vinImage: vinImage, 
+      position: position, 
+      isShattered: isShattered, 
+      proofImages: {
+        // NOTE: Change 'proofImages.image1' to whatever your actual state variables 
+        // are named in your app (e.g., photoA, photoB, or an array index like proofImages[0])
+        
+        "Photo 1 (Primary Position/Sensor Check): Analyze hardware thickness, sensors, or door placement.": proofImages.image1 || "",
+        
+        "Photo 2 (Macro/Detail Check): Read the glass stamp (Tempered vs Acoustic) or check for heated wires.": proofImages.image2 || "",
+        
+        "Photo 3 (Silhouette/Exterior): Check shade band color, HUD windows, or body style.": proofImages.image3 || ""
+      } 
+    };
+    // ===============================================
+
     try {
-      // Send the payload to Gemini 3.1 Pro
+      // Send the beautifully labeled payload to Gemini 3.1 Pro
       const result = await decodeVehiclePhotos(payload);
       setDecodeResults(result);
       console.log("DECODE SUCCESS:", result);
