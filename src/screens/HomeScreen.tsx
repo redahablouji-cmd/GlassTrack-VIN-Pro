@@ -241,11 +241,11 @@ export default function HomeScreen() {
           {/* DUAL BUTTONS FOR VIN */}
           <div className="flex gap-2">
             <label className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-lg text-center cursor-pointer text-sm font-bold transition-colors shadow-md">
-              <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleNativeCapture(e, { id: 'vin' }, true)} disabled={validatingId === 'vin'} />
+              <input type="file" accept="image/jpeg, image/png, image/webp" capture="environment" className="hidden" onChange={(e) => handleNativeCapture(e, { id: 'vin' }, true)} disabled={validatingId === 'vin'} />
               📷 Camera
             </label>
             <label className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-3 rounded-lg text-center cursor-pointer text-sm font-bold transition-colors shadow-md">
-              <input type="file" accept="image/*" className="hidden" onChange={(e) => handleNativeCapture(e, { id: 'vin' }, true)} disabled={validatingId === 'vin'} />
+              <input type="file" accept="image/jpeg, image/png, image/webp" className="hidden" onChange={(e) => handleNativeCapture(e, { id: 'vin' }, true)} disabled={validatingId === 'vin'} />
               🖼️ Gallery
             </label>
           </div>
@@ -280,11 +280,11 @@ export default function HomeScreen() {
               {/* DUAL BUTTONS FOR EVERY PHOTO */}
               <div className="flex gap-2">
                 <label className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-lg text-center cursor-pointer text-xs font-bold transition-colors shadow-md">
-                  <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleNativeCapture(e, item)} disabled={validatingId === item.id} />
+                  <input type="file" accept="image/jpeg, image/png, image/webp" capture="environment" className="hidden" onChange={(e) => handleNativeCapture(e, item)} disabled={validatingId === item.id} />
                   📷 Camera
                 </label>
                 <label className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-center cursor-pointer text-xs font-bold transition-colors shadow-md">
-                  <input type="file" accept="image/*" className="hidden" onChange={(e) => handleNativeCapture(e, item)} disabled={validatingId === item.id} />
+                  <input type="file" accept="image/jpeg, image/png, image/webp" className="hidden" onChange={(e) => handleNativeCapture(e, item)} disabled={validatingId === item.id} />
                   🖼️ Gallery
                 </label>
               </div>
