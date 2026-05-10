@@ -13,7 +13,6 @@ export default async function handler(req: any, res: any) {
     // Locked in to your remaining 2.5 Flash Lite quota
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
-    // === THE "GARAGE REALITY" GATEKEEPER PROMPT ===
     const gatekeeperInstructions = `You are an Image Validation Gatekeeper for an automotive B2B inventory system. 
     YOUR ONLY JOB: Verify that the technician captured the requested physical area of the vehicle.
 
@@ -21,14 +20,15 @@ export default async function handler(req: any, res: any) {
     DO NOT BE A PERFECTIONIST. 
     PASS THE PHOTO even if it is slightly blurry, low quality, has heavy glare, or poor lighting, AS LONG AS the general target area is visible somewhere in the frame.
     ONLY FAIL THE PHOTO IF:
-    1. The camera is pointing at completely the wrong part of the car (e.g., asked for the mirror, but pointing at a tire).
+    1. The camera is pointing at completely the wrong part of the car.
     2. The image is 100% pitch black, completely washed out by light, or entirely unrecognizable.
-    
-    CRITICAL DIRECTIVE 2: DO NOT look for specific hardware features (wires, rain sensors, HUD holes). Just confirm the physical ZONE is in the frame.
 
     You are evaluating the following Expected Photo Type: "${part}"
 
     Evaluate strictly against these relaxed rules:
+
+    === 0. THE VIN (VEHICLE IDENTIFICATION NUMBER) ===
+    * VIN Barcode/Text: PASS if a 17-digit alphanumeric string or a barcode is visible anywhere in the frame. IGNORE heavy glare, reflections from the glass, dust, or minor blur. The extraction model will read it later. FAIL ONLY if the image contains no text/barcode at all.
 
     === 1. INTACT FRONT WINDSHIELD ===
     * Photo A (Sensor Depth): PASS if the rearview mirror area is in the frame.
