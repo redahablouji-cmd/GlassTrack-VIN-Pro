@@ -30,14 +30,17 @@ export const decodeVehiclePhotos = async (payload: any) => {
     const response = await fetch('/api/decoder', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(payload)
     });
 
-    if (!response.ok) throw new Error("Decoding failed");
+    // If Vercel or Google throws a 500 error, grab the exact text
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Backend Error ${response.status}: ${errorText}`);
+    }
 
     return await response.json();
-  } catch (error) {
-    console.error("Failed to decode:", error);
-    throw error;
+  } catch (error: any) {
+    throw new Error(error.message || "Failed to reach the decoder server.");
   }
 };

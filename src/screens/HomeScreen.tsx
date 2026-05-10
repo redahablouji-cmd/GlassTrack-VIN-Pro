@@ -170,7 +170,6 @@ export default function HomeScreen() {
       }
     });
 
-    // NEW: We now send the requested referenceFormat to the API payload
     const payload = { 
       vinImage, 
       position, 
@@ -182,8 +181,9 @@ export default function HomeScreen() {
     try {
       const result = await decodeVehiclePhotos(payload);
       setDecodeResults(result);
-    } catch (error) {
-      alert("فشل في تحليل البيانات.");
+    } catch (error: any) {
+      // FIX: Show the exact error instead of the generic Arabic message
+      alert(`Crash Details:\n${error.message || JSON.stringify(error)}`);
     } finally {
       setIsDecoding(false);
     }
