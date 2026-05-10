@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { decodeVehiclePhotos } from '../services/api';
+// Import BOTH the pre-checker (analyzeLiveFrame) and the final decoder
+import { analyzeLiveFrame, decodeVehiclePhotos } from '../services/api';
 
-// === THE FORENSIC UI ENGINE ===
-// This dynamically generates the exact buttons and descriptions you requested.
 const FORENSIC_UI_MAP: any = {
   "Front Windshield": {
     intact: [
@@ -46,24 +45,55 @@ export default function HomeScreen() {
   const [vinImage, setVinImage] = useState<string | null>(null);
   const [proofImages, setProofImages] = useState<Record<string, string>>({});
   
+  // NEW: State for the AI Gatekeeper Check
+  const [validatingId, setValidatingId] = useState<string | null>(null);
+  const [imageErrors, setImageErrors] = useState<Record<string, string>>({});
+
   const [isDecoding, setIsDecoding] = useState(false);
   const [decodeResults, setDecodeResults] = useState<any>(null);
 
-  // Get the current required checklist based on user selection
   const currentChecklist = FORENSIC_UI_MAP[position][isShattered ? 'shattered' : 'intact'];
 
-  // Native Camera Handler
-  const handleNativeCapture = (e: React.ChangeEvent<HTMLInputElement>, imageId: string, isVin: boolean = false) => {
+  // === THE AI GATEKEEPER PROCESS ===
+  const handleNativeCapture = async (e: React.ChangeEvent<HTMLInputElement>, item: any, isVin: boolean = false) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onloadend = () => {
+    reader.onloadend = async () => {
       const base64 = reader.result as string;
+      
+      // 1. If it's a VIN, just save it directly for now
       if (isVin) {
         setVinImage(base64);
-      } else {
-        setProofImages(prev => ({ ...prev, [imageId]: base64 }));
+        return;
+      }
+
+      // 2. Start the AI Pre-Check
+      const imageId = item.id;
+      setValidatingId(imageId);
+      setImageErrors(prev => ({ ...prev, [imageId]: "" })); // Clear previous errors
+
+      try {
+        // Send the photo AND the specific description to the AI Bouncer
+        const expectedPart = `${item.title} - WHAT TO LOOK FOR: ${item.desc}`;
+        const aiResponse: any = await analyzeLiveFrame(base64, expectedPart);
+
+        if (aiResponse.systemError) {
+          setImageErrors(prev => ({ ...prev, [imageId]: "System Error. Try again." }));
+        } else if (aiResponse.isPerfect) {
+          // AI APPROVED! Save it to the payload.
+          setProofImages(prev => ({ ...prev, [imageId]: base64 }));
+        } else {
+          // AI REJECTED! Show the live Arabic feedback and do NOT save the image.
+          setImageErrors(prev => ({ ...prev, [imageId]: `❌ ${aiResponse.arabicInstruction}` }));
+          // Clear the input so they can click it again
+          e.target.value = '';
+        }
+      } catch (err) {
+        setImageErrors(prev => ({ ...prev, [imageId]: "Network Error." }));
+      } finally {
+        setValidatingId(null);
       }
     };
     reader.readAsDataURL(file);
@@ -71,26 +101,16 @@ export default function HomeScreen() {
 
   const handleFinalUpload = async () => {
     setIsDecoding(true);
-    
-    // === THE INTERLEAVED PAYLOAD FIX ===
     const formattedProofImages: Record<string, string> = {};
     
     currentChecklist.forEach((item: any) => {
       if (proofImages[item.id]) {
-        // We glue the Title AND the Description together here!
-        // This guarantees the AI reads exactly what the human read.
         const fullAIInstruction = `${item.title} - WHAT TO LOOK FOR: ${item.desc}`;
-        
         formattedProofImages[fullAIInstruction] = proofImages[item.id];
       }
     });
 
-    const payload = { 
-      vinImage, 
-      position, 
-      isShattered, 
-      proofImages: formattedProofImages 
-    };
+    const payload = { vinImage, position, isShattered, proofImages: formattedProofImages };
 
     try {
       const result = await decodeVehiclePhotos(payload);
@@ -102,7 +122,6 @@ export default function HomeScreen() {
     }
   };
 
-  // The Sleek Success Badge Component
   const SuccessBadge = () => (
     <div className="absolute -top-2 -right-2 bg-green-500 rounded-full p-1 border-2 border-gray-900 shadow-lg z-10">
       <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -114,56 +133,35 @@ export default function HomeScreen() {
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 pb-24 font-sans">
       
-      {/* Header */}
       <div className="mb-8 mt-4">
         <h1 className="text-2xl font-bold tracking-wide">LOWFX <span className="text-blue-500">GLASS</span></h1>
         <p className="text-gray-400 text-sm mt-1">B2B Homologation & Inventory</p>
       </div>
 
-      {/* Configuration Selectors */}
       <div className="bg-gray-800 rounded-xl p-4 mb-6 shadow-lg border border-gray-700">
         <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Vehicle Configuration</h2>
-        
         <select 
           className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white mb-4 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
           value={position}
-          onChange={(e) => { setPosition(e.target.value); setProofImages({}); }}
+          onChange={(e) => { setPosition(e.target.value); setProofImages({}); setImageErrors({}); }}
         >
           <option value="Front Windshield">Front Windshield</option>
           <option value="Lateral Glass">Lateral Glass (Doors)</option>
           <option value="Rear Glass">Rear Glass (Trunk/Hatch)</option>
         </select>
-
         <div className="flex gap-2">
-          <button 
-            onClick={() => { setIsShattered(false); setProofImages({}); }}
-            className={`flex-1 py-3 rounded-lg text-sm font-bold transition-colors ${!isShattered ? 'bg-blue-600 text-white' : 'bg-gray-900 text-gray-400 border border-gray-700'}`}
-          >
-            Glass Intact
-          </button>
-          <button 
-            onClick={() => { setIsShattered(true); setProofImages({}); }}
-            className={`flex-1 py-3 rounded-lg text-sm font-bold transition-colors ${isShattered ? 'bg-red-600 text-white' : 'bg-gray-900 text-gray-400 border border-gray-700'}`}
-          >
-            Missing / Shattered
-          </button>
+          <button onClick={() => { setIsShattered(false); setProofImages({}); setImageErrors({}); }} className={`flex-1 py-3 rounded-lg text-sm font-bold transition-colors ${!isShattered ? 'bg-blue-600 text-white' : 'bg-gray-900 text-gray-400 border border-gray-700'}`}>Glass Intact</button>
+          <button onClick={() => { setIsShattered(true); setProofImages({}); setImageErrors({}); }} className={`flex-1 py-3 rounded-lg text-sm font-bold transition-colors ${isShattered ? 'bg-red-600 text-white' : 'bg-gray-900 text-gray-400 border border-gray-700'}`}>Missing / Shattered</button>
         </div>
       </div>
 
-      {/* 1. Professional VIN Scanner Card */}
       <div className="mb-6 relative">
-        <input 
-          type="file" accept="image/*" capture="environment" className="hidden" id="vin-upload"
-          onChange={(e) => handleNativeCapture(e, 'vin', true)}
-        />
+        <input type="file" accept="image/*" capture="environment" className="hidden" id="vin-upload" onChange={(e) => handleNativeCapture(e, { id: 'vin' }, true)} />
         <label htmlFor="vin-upload" className="block w-full bg-gray-800 border border-gray-700 rounded-xl p-5 shadow-lg active:scale-[0.98] transition-transform cursor-pointer relative">
           {vinImage && <SuccessBadge />}
           <div className="flex items-center gap-4">
             <div className={`p-3 rounded-lg ${vinImage ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}`}>
-              {/* Professional Barcode Icon */}
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-16v16M4 4v16m4-16v16m8-16v16" />
-              </svg>
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-16v16M4 4v16m4-16v16m8-16v16" /></svg>
             </div>
             <div>
               <h3 className="font-bold text-white">Capture VIN Barcode</h3>
@@ -173,28 +171,34 @@ export default function HomeScreen() {
         </label>
       </div>
 
-      {/* 2. Dynamic Forensic Checklist */}
       <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Required Diagnostic Photos</h2>
       <div className="space-y-4">
         {currentChecklist.map((item: any) => (
           <div key={item.id} className="relative">
-            <input 
-              type="file" accept="image/*" capture="environment" className="hidden" id={`upload-${item.id}`}
-              onChange={(e) => handleNativeCapture(e, item.id)}
-            />
-            <label htmlFor={`upload-${item.id}`} className="block w-full bg-gray-800 border border-gray-700 rounded-xl p-4 shadow-lg active:scale-[0.98] transition-transform cursor-pointer relative">
+            <input type="file" accept="image/*" capture="environment" className="hidden" id={`upload-${item.id}`} onChange={(e) => handleNativeCapture(e, item)} disabled={validatingId === item.id} />
+            <label htmlFor={`upload-${item.id}`} className={`block w-full bg-gray-800 border border-gray-700 rounded-xl p-4 shadow-lg transition-transform cursor-pointer relative ${validatingId === item.id ? 'opacity-50 cursor-wait' : 'active:scale-[0.98]'}`}>
               {proofImages[item.id] && <SuccessBadge />}
+              
               <div className="flex justify-between items-start gap-4">
                 <div className="flex-1">
-                  <h3 className={`font-bold text-sm ${proofImages[item.id] ? 'text-green-400' : 'text-blue-400'}`}>
-                    {item.title}
-                  </h3>
+                  <h3 className={`font-bold text-sm ${proofImages[item.id] ? 'text-green-400' : 'text-blue-400'}`}>{item.title}</h3>
                   <p className="text-gray-400 text-xs mt-2 leading-relaxed">{item.desc}</p>
+                  
+                  {/* AI PRE-CHECK UI STATES */}
+                  {validatingId === item.id && (
+                    <p className="text-yellow-400 text-xs font-bold mt-3 animate-pulse dir-rtl">جاري فحص الصورة بالذكاء الاصطناعي...</p>
+                  )}
+                  {imageErrors[item.id] && (
+                    <div className="mt-3 bg-red-900/40 border border-red-500/50 rounded p-2">
+                      <p className="text-red-400 text-xs font-bold dir-rtl">{imageErrors[item.id]}</p>
+                    </div>
+                  )}
                 </div>
                 
-                {/* Image Thumbnail Preview */}
                 <div className="w-16 h-16 shrink-0 rounded-lg bg-gray-900 border border-gray-700 flex items-center justify-center overflow-hidden">
-                  {proofImages[item.id] ? (
+                  {validatingId === item.id ? (
+                     <div className="w-6 h-6 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+                  ) : proofImages[item.id] ? (
                     <img src={proofImages[item.id]} alt="Captured" className="w-full h-full object-cover" />
                   ) : (
                     <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
@@ -206,7 +210,6 @@ export default function HomeScreen() {
         ))}
       </div>
 
-      {/* Decode Results Panel */}
       {decodeResults && (
         <div className="mt-8 bg-blue-900/30 border border-blue-500/50 rounded-xl p-5 backdrop-blur-sm">
           <h3 className="font-bold text-blue-400 mb-2">AI Decode Complete</h3>
@@ -216,17 +219,17 @@ export default function HomeScreen() {
         </div>
       )}
 
-      {/* Big Blue Upload Button */}
-      <div className="fixed bottom-0 left-0 w-full p-4 bg-gradient-to-t from-gray-900 via-gray-900 to-transparent">
+      {/* FINAL BUTTON - NOW LOCKED BY THE AI GATEKEEPER */}
+      <div className="fixed bottom-0 left-0 w-full p-4 bg-gradient-to-t from-gray-900 via-gray-900 to-transparent z-50">
         <button 
           onClick={handleFinalUpload}
           disabled={isDecoding || !vinImage || Object.keys(proofImages).length < currentChecklist.length}
           className={`w-full py-4 rounded-xl font-bold text-lg shadow-xl transition-all ${
             isDecoding ? 'bg-gray-700 text-gray-400 cursor-wait' :
-            (!vinImage || Object.keys(proofImages).length < currentChecklist.length) ? 'bg-gray-800 text-gray-600' : 'bg-blue-600 text-white active:scale-95'
+            (!vinImage || Object.keys(proofImages).length < currentChecklist.length) ? 'bg-gray-800 text-gray-600 cursor-not-allowed' : 'bg-blue-600 text-white active:scale-95'
           }`}
         >
-          {isDecoding ? 'جاري التحليل بالذكاء الاصطناعي...' : 'INITIATE AI DECODE'}
+          {isDecoding ? 'جاري التحليل بالذكاء الاصطناعي...' : 'INITIATE VIN DECODE'}
         </button>
       </div>
 
