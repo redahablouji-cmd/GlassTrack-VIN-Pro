@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { analyzeLiveFrame, decodeVehiclePhotos } from '../services/api';
 
-// (Keep your existing FORENSIC_UI_MAP here...)
 const FORENSIC_UI_MAP: any = {
   "Front Windshield": {
     intact: [
@@ -43,11 +42,9 @@ export default function HomeScreen() {
   const [position, setPosition] = useState<string>("Front Windshield");
   const [isShattered, setIsShattered] = useState<boolean>(false);
   
-  // App States
   const [vinImage, setVinImage] = useState<string | null>(null);
   const [proofImages, setProofImages] = useState<Record<string, string>>({});
   
-  // NEW: Preview state to hold the image even if the AI rejects it
   const [previewImages, setPreviewImages] = useState<Record<string, string>>({});
   const [validatingId, setValidatingId] = useState<string | null>(null);
   const [imageErrors, setImageErrors] = useState<Record<string, string>>({});
@@ -56,7 +53,6 @@ export default function HomeScreen() {
 
   const currentChecklist = FORENSIC_UI_MAP[position][isShattered ? 'shattered' : 'intact'];
 
-  // Image Compression
   const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -90,8 +86,6 @@ export default function HomeScreen() {
 
     try {
       const base64 = await compressImage(file);
-      
-      // Instantly show the image on screen so the user can see what they just took
       setPreviewImages(prev => ({ ...prev, [imageId]: base64 }));
 
       const expectedPart = isVin 
@@ -102,27 +96,35 @@ export default function HomeScreen() {
 
       if (aiResponse.systemError) {
         setImageErrors(prev => ({ ...prev, [imageId]: `⚠️ النظام: ${aiResponse.systemError}` }));
-        // DO NOT delete preview image so user can review it
         if (isVin) setVinImage(null); else {
           const newProofs = {...proofImages}; delete newProofs[imageId]; setProofImages(newProofs);
         }
       } else if (aiResponse.isPerfect) {
-        // AI Approved
         if (isVin) setVinImage(base64);
         else setProofImages(prev => ({ ...prev, [imageId]: base64 }));
       } else {
-        // AI Rejected
         setImageErrors(prev => ({ ...prev, [imageId]: `❌ ${aiResponse.arabicInstruction}` }));
-        // DO NOT delete preview image. Just remove it from "approved" proofImages.
         if (isVin) setVinImage(null); else {
           const newProofs = {...proofImages}; delete newProofs[imageId]; setProofImages(newProofs);
         }
       }
     } catch (err: any) {
-      setImageErrors(prev => ({ ...prev, [imageId]: `⚠️ Network Error: ${err.message}` }));
+      console.error("RAW CRASH DATA:", err);
+      
+      // Bulletproof error extraction: if err.message doesn't exist, stringify the whole error object
+      let exactError = "Unknown Crash";
+      if (err?.message) {
+        exactError = err.message;
+      } else if (typeof err === 'string') {
+        exactError = err;
+      } else {
+        exactError = JSON.stringify(err);
+      }
+      
+      setImageErrors(prev => ({ ...prev, [imageId]: `⚠️ Error: ${exactError}` }));
     } finally {
       setValidatingId(null);
-      e.target.value = ''; // Clear input so they can re-upload the same file if needed
+      e.target.value = ''; 
     }
   };
 
@@ -177,12 +179,10 @@ export default function HomeScreen() {
       </div>
 
       {/* VIN SECTION */}
-      <div className="mb-6 relative">
-        {/* REMOVED capture="environment" so Gallery opens! */}
-        <input type="file" accept="image/*" className="hidden" id="vin-upload" onChange={(e) => handleNativeCapture(e, { id: 'vin' }, true)} disabled={validatingId === 'vin'} />
-        <label htmlFor="vin-upload" className={`block w-full bg-gray-800 border ${imageErrors['vin'] ? 'border-red-500' : 'border-gray-700'} rounded-xl p-5 shadow-lg transition-transform cursor-pointer relative ${validatingId === 'vin' ? 'opacity-50 cursor-wait' : 'active:scale-[0.98]'}`}>
+      <div className="mb-6">
+        <div className={`w-full bg-gray-800 border ${imageErrors['vin'] ? 'border-red-500' : 'border-gray-700'} rounded-xl p-5 shadow-lg relative`}>
           {vinImage && <SuccessBadge />}
-          <div className="flex items-start gap-4">
+          <div className="flex items-start gap-4 mb-4">
             <div className="w-16 h-16 shrink-0 rounded-lg bg-gray-900 border border-gray-700 flex items-center justify-center overflow-hidden">
                 {validatingId === 'vin' ? (
                      <div className="w-6 h-6 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
@@ -195,40 +195,63 @@ export default function HomeScreen() {
             <div className="flex-1">
               <h3 className="font-bold text-white">Capture VIN</h3>
               <p className="text-gray-400 text-xs mt-1">{vinImage ? 'VIN Approved' : 'Required for precise matching'}</p>
-              {validatingId === 'vin' && <p className="text-yellow-400 text-xs font-bold mt-3 animate-pulse dir-rtl">جاري فحص الصورة...</p>}
+              {validatingId === 'vin' && <p className="text-yellow-400 text-xs font-bold mt-2 animate-pulse dir-rtl">جاري الفحص...</p>}
               {imageErrors['vin'] && <p className="mt-2 text-red-400 text-xs font-bold dir-rtl break-words">{imageErrors['vin']}</p>}
             </div>
           </div>
-        </label>
+          
+          {/* DUAL BUTTONS FOR VIN */}
+          <div className="flex gap-2">
+            <label className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-lg text-center cursor-pointer text-sm font-bold transition-colors shadow-md">
+              <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleNativeCapture(e, { id: 'vin' }, true)} disabled={validatingId === 'vin'} />
+              📷 Camera
+            </label>
+            <label className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-3 rounded-lg text-center cursor-pointer text-sm font-bold transition-colors shadow-md">
+              <input type="file" accept="image/*" className="hidden" onChange={(e) => handleNativeCapture(e, { id: 'vin' }, true)} disabled={validatingId === 'vin'} />
+              🖼️ Gallery
+            </label>
+          </div>
+        </div>
       </div>
 
       <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Required Diagnostic Photos</h2>
       <div className="space-y-4">
         {currentChecklist.map((item: any) => (
           <div key={item.id} className="relative">
-            {/* REMOVED capture="environment" so Gallery opens! */}
-            <input type="file" accept="image/*" className="hidden" id={`upload-${item.id}`} onChange={(e) => handleNativeCapture(e, item)} disabled={validatingId === item.id} />
-            <label htmlFor={`upload-${item.id}`} className={`block w-full bg-gray-800 border ${imageErrors[item.id] ? 'border-red-500' : 'border-gray-700'} rounded-xl p-4 shadow-lg transition-transform cursor-pointer relative ${validatingId === item.id ? 'opacity-50 cursor-wait' : 'active:scale-[0.98]'}`}>
+            <div className={`w-full bg-gray-800 border ${imageErrors[item.id] ? 'border-red-500' : 'border-gray-700'} rounded-xl p-4 shadow-lg relative`}>
               {proofImages[item.id] && <SuccessBadge />}
-              <div className="flex justify-between items-start gap-4">
+              
+              <div className="flex justify-between items-start gap-4 mb-4">
                 <div className="flex-1">
                   <h3 className={`font-bold text-sm ${proofImages[item.id] ? 'text-green-400' : imageErrors[item.id] ? 'text-red-400' : 'text-blue-400'}`}>{item.title}</h3>
                   <p className="text-gray-400 text-xs mt-2 leading-relaxed">{item.desc}</p>
-                  {validatingId === item.id && <p className="text-yellow-400 text-xs font-bold mt-3 animate-pulse dir-rtl">جاري فحص الصورة...</p>}
+                  {validatingId === item.id && <p className="text-yellow-400 text-xs font-bold mt-2 animate-pulse dir-rtl">جاري الفحص...</p>}
                   {imageErrors[item.id] && <p className="mt-2 text-red-400 text-xs font-bold dir-rtl break-words">{imageErrors[item.id]}</p>}
                 </div>
                 <div className="w-16 h-16 shrink-0 rounded-lg bg-gray-900 border border-gray-700 flex items-center justify-center overflow-hidden">
                   {validatingId === item.id ? (
                      <div className="w-6 h-6 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
                   ) : previewImages[item.id] ? (
-                    // This keeps the image visible even if rejected
                     <img src={previewImages[item.id]} alt="Preview" className="w-full h-full object-cover" />
                   ) : (
                     <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                   )}
                 </div>
               </div>
-            </label>
+
+              {/* DUAL BUTTONS FOR EVERY PHOTO */}
+              <div className="flex gap-2">
+                <label className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-lg text-center cursor-pointer text-xs font-bold transition-colors shadow-md">
+                  <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleNativeCapture(e, item)} disabled={validatingId === item.id} />
+                  📷 Camera
+                </label>
+                <label className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-center cursor-pointer text-xs font-bold transition-colors shadow-md">
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => handleNativeCapture(e, item)} disabled={validatingId === item.id} />
+                  🖼️ Gallery
+                </label>
+              </div>
+
+            </div>
           </div>
         ))}
       </div>
