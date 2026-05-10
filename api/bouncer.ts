@@ -10,7 +10,7 @@ export default async function handler(req: any, res: any) {
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    // We strictly use 2.5 Flash here because it is the fastest model for image validation
+    // Locked in to your remaining 2.5 Flash Lite quota
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
     // === THE "GARAGE REALITY" GATEKEEPER PROMPT ===
@@ -53,23 +53,34 @@ export default async function handler(req: any, res: any) {
     * C-Pillar Connectors: PASS if the interior trunk side-frame is in the frame.
 
     === REQUIRED OUTPUT ===
-    Respond ONLY with a valid JSON object:
+    Respond ONLY with a valid JSON object. DO NOT USE LINE BREAKS OR NEWLINES INSIDE YOUR JSON STRINGS:
     {
       "isPerfect": boolean,
       "arabicInstruction": "If true, return '✅'. If false, give a short, polite Arabic instruction explaining that they are pointing at the wrong part of the car."
     }`;
 
-    // Convert the base64 string back into a format Gemini can read
-    const base64Data = image.replace(/^data:image\/(png|jpeg|jpg);base64,/, "");
+    // Convert the base64 string back into a format Gemini can read (added webp support just in case)
+    const base64Data = image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
 
-    // Send the image AND the strict rules to Gemini 2.5 Flash
+    // Send the image AND the strict rules to Gemini 2.5 Flash Lite
     const result = await model.generateContent([
       gatekeeperInstructions,
       { inlineData: { data: base64Data, mimeType: "image/jpeg" } }
     ]);
 
-    // Clean up the response and send it back to your HomeScreen
-    const cleanJson = result.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
+    const rawText = result.response.text();
+    
+    // === THE BULLETPROOF JSON CLEANER ===
+    // 1. Extract ONLY the JSON block (ignores extra chatty text the AI might add)
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error("AI did not return valid JSON structure.");
+    }
+    
+    // 2. Strip all literal line breaks, tabs, and hidden control characters that crash JSON.parse
+    const cleanJson = jsonMatch[0].replace(/[\n\r\t]/g, ' ');
+
+    // 3. Parse safely and send to frontend
     return res.status(200).json(JSON.parse(cleanJson));
 
   } catch (error: any) {
