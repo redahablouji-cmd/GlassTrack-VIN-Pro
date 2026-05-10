@@ -52,52 +52,71 @@ export default function HomeScreen() {
 
   const currentChecklist = FORENSIC_UI_MAP[position][isShattered ? 'shattered' : 'intact'];
 
-  // === UPGRADED AI GATEKEEPER PROCESS ===
+  // === NEW: IMAGE COMPRESSION ENGINE ===
+  // Shrinks massive phone photos down so they bypass Vercel's 4.5MB limits (fixes HTTP 413)
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 1200; // Perfect resolution for AI, tiny file size
+          const scaleSize = MAX_WIDTH / img.width;
+          
+          canvas.width = MAX_WIDTH;
+          canvas.height = img.height * scaleSize;
+
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+          // Export as JPEG at 75% quality
+          resolve(canvas.toDataURL('image/jpeg', 0.75));
+        };
+        img.onerror = (err) => reject(err);
+      };
+      reader.onerror = (err) => reject(err);
+    });
+  };
+
   const handleNativeCapture = async (e: React.ChangeEvent<HTMLInputElement>, item: any, isVin: boolean = false) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64 = reader.result as string;
-      const imageId = isVin ? 'vin' : item.id;
-      
-      setValidatingId(imageId);
-      setImageErrors(prev => ({ ...prev, [imageId]: "" })); 
+    const imageId = isVin ? 'vin' : item.id;
+    setValidatingId(imageId);
+    setImageErrors(prev => ({ ...prev, [imageId]: "" })); 
 
-      // 1. Set the exact rule for the AI based on if it's the VIN or a Car Part
+    try {
+      // Compress the image before doing anything else!
+      const base64 = await compressImage(file);
+      
       const expectedPart = isVin 
         ? "VIN Barcode - WHAT TO LOOK FOR: A clear, readable 17-digit Vehicle Identification Number (VIN) barcode or text. Reject it if it is blurry, cut off, or illegible."
         : `${item.title} - WHAT TO LOOK FOR: ${item.desc}`;
 
-      try {
-        const aiResponse: any = await analyzeLiveFrame(base64, expectedPart);
+      const aiResponse: any = await analyzeLiveFrame(base64, expectedPart);
 
-        // 2. UNMASK THE ERRORS: Display the exact raw error from Google/Vercel
-        if (aiResponse.systemError) {
-          setImageErrors(prev => ({ ...prev, [imageId]: `⚠️ النظام: ${aiResponse.systemError}` }));
-          e.target.value = '';
-          if (isVin) setVinImage(null);
-        } 
-        // 3. AI APPROVED
-        else if (aiResponse.isPerfect) {
-          if (isVin) setVinImage(base64);
-          else setProofImages(prev => ({ ...prev, [imageId]: base64 }));
-        } 
-        // 4. AI REJECTED (Bad Photo)
-        else {
-          setImageErrors(prev => ({ ...prev, [imageId]: `❌ ${aiResponse.arabicInstruction}` }));
-          e.target.value = '';
-          if (isVin) setVinImage(null);
-        }
-      } catch (err: any) {
-        setImageErrors(prev => ({ ...prev, [imageId]: `⚠️ Network Error: ${err.message || 'Connection lost'}` }));
+      if (aiResponse.systemError) {
+        setImageErrors(prev => ({ ...prev, [imageId]: `⚠️ النظام: ${aiResponse.systemError}` }));
         e.target.value = '';
-      } finally {
-        setValidatingId(null);
+        if (isVin) setVinImage(null);
+      } else if (aiResponse.isPerfect) {
+        if (isVin) setVinImage(base64);
+        else setProofImages(prev => ({ ...prev, [imageId]: base64 }));
+      } else {
+        setImageErrors(prev => ({ ...prev, [imageId]: `❌ ${aiResponse.arabicInstruction}` }));
+        e.target.value = '';
+        if (isVin) setVinImage(null);
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err: any) {
+      setImageErrors(prev => ({ ...prev, [imageId]: `⚠️ Network Error: ${err.message || 'Connection lost'}` }));
+      e.target.value = '';
+    } finally {
+      setValidatingId(null);
+    }
   };
 
   const handleFinalUpload = async () => {
@@ -154,7 +173,6 @@ export default function HomeScreen() {
         </div>
       </div>
 
-      {/* UPGRADED VIN SECTION */}
       <div className="mb-6 relative">
         <input type="file" accept="image/*" capture="environment" className="hidden" id="vin-upload" onChange={(e) => handleNativeCapture(e, { id: 'vin' }, true)} disabled={validatingId === 'vin'} />
         <label htmlFor="vin-upload" className={`block w-full bg-gray-800 border border-gray-700 rounded-xl p-5 shadow-lg transition-transform cursor-pointer relative ${validatingId === 'vin' ? 'opacity-50 cursor-wait' : 'active:scale-[0.98]'}`}>
@@ -171,7 +189,6 @@ export default function HomeScreen() {
               <h3 className="font-bold text-white">Capture VIN Barcode</h3>
               <p className="text-gray-400 text-xs mt-1">{vinImage ? 'VIN Checked & Approved' : 'Required for precise database matching'}</p>
               
-              {/* VIN AI PRE-CHECK STATES */}
               {validatingId === 'vin' && (
                 <p className="text-yellow-400 text-xs font-bold mt-3 animate-pulse dir-rtl">جاري فحص الـ VIN بالذكاء الاصطناعي...</p>
               )}
