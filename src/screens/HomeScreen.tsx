@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-// Import BOTH the pre-checker (analyzeLiveFrame) and the final decoder
 import { analyzeLiveFrame, decodeVehiclePhotos } from '../services/api';
 
 const FORENSIC_UI_MAP: any = {
@@ -45,7 +44,6 @@ export default function HomeScreen() {
   const [vinImage, setVinImage] = useState<string | null>(null);
   const [proofImages, setProofImages] = useState<Record<string, string>>({});
   
-  // NEW: State for the AI Gatekeeper Check
   const [validatingId, setValidatingId] = useState<string | null>(null);
   const [imageErrors, setImageErrors] = useState<Record<string, string>>({});
 
@@ -54,7 +52,7 @@ export default function HomeScreen() {
 
   const currentChecklist = FORENSIC_UI_MAP[position][isShattered ? 'shattered' : 'intact'];
 
-  // === THE AI GATEKEEPER PROCESS ===
+  // === UPGRADED AI GATEKEEPER PROCESS ===
   const handleNativeCapture = async (e: React.ChangeEvent<HTMLInputElement>, item: any, isVin: boolean = false) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -62,36 +60,39 @@ export default function HomeScreen() {
     const reader = new FileReader();
     reader.onloadend = async () => {
       const base64 = reader.result as string;
+      const imageId = isVin ? 'vin' : item.id;
       
-      // 1. If it's a VIN, just save it directly for now
-      if (isVin) {
-        setVinImage(base64);
-        return;
-      }
-
-      // 2. Start the AI Pre-Check
-      const imageId = item.id;
       setValidatingId(imageId);
-      setImageErrors(prev => ({ ...prev, [imageId]: "" })); // Clear previous errors
+      setImageErrors(prev => ({ ...prev, [imageId]: "" })); 
+
+      // 1. Set the exact rule for the AI based on if it's the VIN or a Car Part
+      const expectedPart = isVin 
+        ? "VIN Barcode - WHAT TO LOOK FOR: A clear, readable 17-digit Vehicle Identification Number (VIN) barcode or text. Reject it if it is blurry, cut off, or illegible."
+        : `${item.title} - WHAT TO LOOK FOR: ${item.desc}`;
 
       try {
-        // Send the photo AND the specific description to the AI Bouncer
-        const expectedPart = `${item.title} - WHAT TO LOOK FOR: ${item.desc}`;
         const aiResponse: any = await analyzeLiveFrame(base64, expectedPart);
 
+        // 2. UNMASK THE ERRORS: Display the exact raw error from Google/Vercel
         if (aiResponse.systemError) {
-          setImageErrors(prev => ({ ...prev, [imageId]: "System Error. Try again." }));
-        } else if (aiResponse.isPerfect) {
-          // AI APPROVED! Save it to the payload.
-          setProofImages(prev => ({ ...prev, [imageId]: base64 }));
-        } else {
-          // AI REJECTED! Show the live Arabic feedback and do NOT save the image.
-          setImageErrors(prev => ({ ...prev, [imageId]: `❌ ${aiResponse.arabicInstruction}` }));
-          // Clear the input so they can click it again
+          setImageErrors(prev => ({ ...prev, [imageId]: `⚠️ النظام: ${aiResponse.systemError}` }));
           e.target.value = '';
+          if (isVin) setVinImage(null);
+        } 
+        // 3. AI APPROVED
+        else if (aiResponse.isPerfect) {
+          if (isVin) setVinImage(base64);
+          else setProofImages(prev => ({ ...prev, [imageId]: base64 }));
+        } 
+        // 4. AI REJECTED (Bad Photo)
+        else {
+          setImageErrors(prev => ({ ...prev, [imageId]: `❌ ${aiResponse.arabicInstruction}` }));
+          e.target.value = '';
+          if (isVin) setVinImage(null);
         }
-      } catch (err) {
-        setImageErrors(prev => ({ ...prev, [imageId]: "Network Error." }));
+      } catch (err: any) {
+        setImageErrors(prev => ({ ...prev, [imageId]: `⚠️ Network Error: ${err.message || 'Connection lost'}` }));
+        e.target.value = '';
       } finally {
         setValidatingId(null);
       }
@@ -124,9 +125,7 @@ export default function HomeScreen() {
 
   const SuccessBadge = () => (
     <div className="absolute -top-2 -right-2 bg-green-500 rounded-full p-1 border-2 border-gray-900 shadow-lg z-10">
-      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-      </svg>
+      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
     </div>
   );
 
@@ -155,17 +154,32 @@ export default function HomeScreen() {
         </div>
       </div>
 
+      {/* UPGRADED VIN SECTION */}
       <div className="mb-6 relative">
-        <input type="file" accept="image/*" capture="environment" className="hidden" id="vin-upload" onChange={(e) => handleNativeCapture(e, { id: 'vin' }, true)} />
-        <label htmlFor="vin-upload" className="block w-full bg-gray-800 border border-gray-700 rounded-xl p-5 shadow-lg active:scale-[0.98] transition-transform cursor-pointer relative">
+        <input type="file" accept="image/*" capture="environment" className="hidden" id="vin-upload" onChange={(e) => handleNativeCapture(e, { id: 'vin' }, true)} disabled={validatingId === 'vin'} />
+        <label htmlFor="vin-upload" className={`block w-full bg-gray-800 border border-gray-700 rounded-xl p-5 shadow-lg transition-transform cursor-pointer relative ${validatingId === 'vin' ? 'opacity-50 cursor-wait' : 'active:scale-[0.98]'}`}>
           {vinImage && <SuccessBadge />}
-          <div className="flex items-center gap-4">
-            <div className={`p-3 rounded-lg ${vinImage ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}`}>
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-16v16M4 4v16m4-16v16m8-16v16" /></svg>
+          <div className="flex items-start gap-4">
+            <div className={`p-3 shrink-0 rounded-lg ${vinImage ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}`}>
+              {validatingId === 'vin' ? (
+                <div className="w-6 h-6 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-16v16M4 4v16m4-16v16m8-16v16" /></svg>
+              )}
             </div>
-            <div>
+            <div className="flex-1">
               <h3 className="font-bold text-white">Capture VIN Barcode</h3>
-              <p className="text-gray-400 text-xs mt-1">{vinImage ? 'VIN Captured Successfully' : 'Required for precise database matching'}</p>
+              <p className="text-gray-400 text-xs mt-1">{vinImage ? 'VIN Checked & Approved' : 'Required for precise database matching'}</p>
+              
+              {/* VIN AI PRE-CHECK STATES */}
+              {validatingId === 'vin' && (
+                <p className="text-yellow-400 text-xs font-bold mt-3 animate-pulse dir-rtl">جاري فحص الـ VIN بالذكاء الاصطناعي...</p>
+              )}
+              {imageErrors['vin'] && (
+                <div className="mt-3 bg-red-900/40 border border-red-500/50 rounded p-2">
+                  <p className="text-red-400 text-xs font-bold dir-rtl break-words">{imageErrors['vin']}</p>
+                </div>
+              )}
             </div>
           </div>
         </label>
@@ -184,13 +198,12 @@ export default function HomeScreen() {
                   <h3 className={`font-bold text-sm ${proofImages[item.id] ? 'text-green-400' : 'text-blue-400'}`}>{item.title}</h3>
                   <p className="text-gray-400 text-xs mt-2 leading-relaxed">{item.desc}</p>
                   
-                  {/* AI PRE-CHECK UI STATES */}
                   {validatingId === item.id && (
                     <p className="text-yellow-400 text-xs font-bold mt-3 animate-pulse dir-rtl">جاري فحص الصورة بالذكاء الاصطناعي...</p>
                   )}
                   {imageErrors[item.id] && (
                     <div className="mt-3 bg-red-900/40 border border-red-500/50 rounded p-2">
-                      <p className="text-red-400 text-xs font-bold dir-rtl">{imageErrors[item.id]}</p>
+                      <p className="text-red-400 text-xs font-bold dir-rtl break-words">{imageErrors[item.id]}</p>
                     </div>
                   )}
                 </div>
@@ -219,7 +232,6 @@ export default function HomeScreen() {
         </div>
       )}
 
-      {/* FINAL BUTTON - NOW LOCKED BY THE AI GATEKEEPER */}
       <div className="fixed bottom-0 left-0 w-full p-4 bg-gradient-to-t from-gray-900 via-gray-900 to-transparent z-50">
         <button 
           onClick={handleFinalUpload}
