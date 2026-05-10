@@ -13,43 +13,50 @@ export default async function handler(req: any, res: any) {
     // We strictly use 2.5 Flash here because it is the fastest model for image validation
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
-    // === THIS IS THE "PROMPT" HARDCODED INTO YOUR APP ===
-    const gatekeeperInstructions = `You are a strict Image Validation Gatekeeper for an automotive B2B inventory system. 
-    YOUR ONLY JOB: Verify that the technician captured the requested physical area of the vehicle from the correct angle, and that the image is in focus.
+    // === THE "GARAGE REALITY" GATEKEEPER PROMPT ===
+    const gatekeeperInstructions = `You are an Image Validation Gatekeeper for an automotive B2B inventory system. 
+    YOUR ONLY JOB: Verify that the technician captured the requested physical area of the vehicle.
 
-    CRITICAL DIRECTIVE: DO NOT evaluate the car parts themselves. DO NOT look for specific features (e.g., do not look for wires, rain sensors, HUD holes, or wiper motors). Your only job is to confirm the required physical ZONE is visible. If the requested area is clearly visible, properly framed, and in focus, the photo PASSES—even if that area is completely empty, bare, or devoid of specific hardware.
+    CRITICAL "GARAGE REALITY" DIRECTIVE: You are evaluating photos taken by mechanics in messy garages with bad lighting, glare, and low-end phone cameras. 
+    DO NOT BE A PERFECTIONIST. 
+    PASS THE PHOTO even if it is slightly blurry, low quality, has heavy glare, or poor lighting, AS LONG AS the general target area is visible somewhere in the frame.
+    ONLY FAIL THE PHOTO IF:
+    1. The camera is pointing at completely the wrong part of the car (e.g., asked for the mirror, but pointing at a tire).
+    2. The image is 100% pitch black, completely washed out by light, or entirely unrecognizable.
+    
+    CRITICAL DIRECTIVE 2: DO NOT look for specific hardware features (wires, rain sensors, HUD holes). Just confirm the physical ZONE is in the frame.
 
     You are evaluating the following Expected Photo Type: "${part}"
 
-    Evaluate the image strictly against these rules:
+    Evaluate strictly against these relaxed rules:
 
     === 1. INTACT FRONT WINDSHIELD ===
-    * Photo A (Sensor Depth): PASS if the side profile of the rearview mirror mount is visible. FAIL if straight-on or blurry.
-    * Photo B (Heater Grid): PASS if the black bottom edge where wipers rest is in focus. FAIL if glare ruins it or zoomed out too far.
-    * Photo C (Silhouette & Tint): PASS if the entire front windshield is visible straight-on. FAIL if corners are cut off.
+    * Photo A (Sensor Depth): PASS if the rearview mirror area is in the frame.
+    * Photo B (Heater Grid): PASS if the bottom edge where wipers rest is in the frame.
+    * Photo C (Silhouette & Tint): PASS if the front windshield shape is generally visible.
 
     === 2. INTACT LATERAL GLASS ===
-    * Photo A (Position Check): PASS if the entire car door and window are fully visible straight-on. FAIL if distorted angle.
-    * Photo B (The "Bug" Stamp): PASS if text/logos on the glass are clear and in focus. FAIL if unreadable.
+    * Photo A (Position Check): PASS if the car door/window is generally visible.
+    * Photo B (The "Bug" Stamp): PASS if the glass corner/stamp area is visible, even if the text is hard to read due to blur or glare. (The Pro model will try to read it later).
 
     === 3. INTACT TRUNK / REAR GLASS ===
-    * Photo A (Hardware Check): PASS if the entire rear window is visible straight-on. FAIL if corners cut off.
-    * Photo B (Technology Grid): PASS if the glass surface is in focus. FAIL if focused on a reflection instead.
+    * Photo A (Hardware Check): PASS if the rear window is generally visible.
+    * Photo B (Technology Grid): PASS if the glass surface is in the frame.
 
     === 4. MISSING / BROKEN GLASS (PROXY PHOTOS) ===
-    * The Service Sticker: PASS if the white/silver build sticker text is readable. FAIL if blurry.
-    * Headliner Harness: PASS if the interior roof liner above the rearview mirror is in focus. FAIL if pointed down.
-    * HUD Dashboard Check: PASS if flat view across the driver dashboard top. FAIL if pointed at steering wheel.
-    * Master Window Switch: PASS if driver door buttons are in clear macro focus. FAIL if taken from afar.
-    * The Door Channel: PASS if the empty rubber window track is in focus. FAIL if track is in dark shadows.
-    * Wiper Motor Stub Area: PASS if center tailgate metal (under window) is in focus. FAIL if pointed at bumper.
-    * C-Pillar Connectors: PASS if interior trunk side-frame near hinges is visible. FAIL if pointed at trunk floor.
+    * The Service Sticker: PASS if the white/silver build sticker is in the frame, even if it is slightly blurry.
+    * Headliner Harness: PASS if the interior ceiling above the mirror is in the frame.
+    * HUD Dashboard Check: PASS if the driver dashboard top is in the frame.
+    * Master Window Switch: PASS if the driver door buttons are in the frame.
+    * The Door Channel: PASS if the empty window track at the top of the door is in the frame.
+    * Wiper Motor Stub Area: PASS if the center tailgate metal under the window is in the frame.
+    * C-Pillar Connectors: PASS if the interior trunk side-frame is in the frame.
 
     === REQUIRED OUTPUT ===
     Respond ONLY with a valid JSON object:
     {
       "isPerfect": boolean,
-      "arabicInstruction": "If true, return '✅'. If false, give a short, specific Arabic instruction to the technician on how to fix the angle, focus, or lighting based on your failure criteria."
+      "arabicInstruction": "If true, return '✅'. If false, give a short, polite Arabic instruction explaining that they are pointing at the wrong part of the car."
     }`;
 
     // Convert the base64 string back into a format Gemini can read
