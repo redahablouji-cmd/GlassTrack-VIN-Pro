@@ -1,268 +1,234 @@
-import React, { useState, useRef } from 'react';
-import CustomCamera from './CustomCamera';
-import { analyzeLiveFrame, decodeVehiclePhotos } from '../services/api';
+import React, { useState } from 'react';
+import { decodeVehiclePhotos } from '../services/api';
 
-// --- THE FORENSIC LOGIC ENGINE ---
-const DIAGNOSTIC_PROTOCOLS = {
-  windshield: {
+// === THE FORENSIC UI ENGINE ===
+// This dynamically generates the exact buttons and descriptions you requested.
+const FORENSIC_UI_MAP: any = {
+  "Front Windshield": {
     intact: [
-      { id: 'mirror_bracket', label: 'Interior Mirror Bracket', icon: '📐', desc: '45° side-angle from inside to reveal hidden sensors.' },
-      { id: 'bottom_cowl', label: 'Bottom Cowl / Wipers', icon: '📏', desc: 'Exterior 45° looking down. Captures heated wiper park.' },
-      { id: 'full_exterior', label: 'Full Exterior View', icon: '🚘', desc: '90° straight on. Silhouette and top shade band.' }
+      { id: "photo1", title: "Photo A: The Sensor Depth (Interior Side-View)", desc: "45° angle from the passenger seat looking toward the rearview mirror bracket. Shows Rain Sensor/LDWS profile." },
+      { id: "photo2", title: "Photo B: The Heater Grid (Exterior Cowl-View)", desc: "Looking down at a 45° angle at the black area where wiper blades rest. Look for heated orange wires." },
+      { id: "photo3", title: "Photo C: The Silhouette & Tint (Full Exterior)", desc: "90° straight-on from the front. Confirms Shade Band and HUD windows." }
     ],
     shattered: [
-      { id: 'b_pillar', label: 'B-Pillar Sticker', icon: '🏷️', desc: '90° straight on driver door jamb PR-Codes.' },
-      { id: 'dash_hud', label: 'Dashboard Top', icon: '🎛️', desc: 'Interior flat across dash. Checking for HUD hole.' },
-      { id: 'roof_wires', label: 'Dangling Roof Wires', icon: '🔌', desc: 'Interior looking up at headliner wire plugs.' }
+      { id: "photo1", title: "Photo 1: The Headliner Harness", desc: "Close-up above rearview mirror. Look for dangling 10-pin green connector or LVDS cable." },
+      { id: "photo2", title: "Photo 2: The HUD 'Well'", desc: "Flat shot across driver dashboard looking for a deep rectangular sink/hole." },
+      { id: "photo3", title: "Photo 3: The 'Universal Key' (Service Sticker)", desc: "90° straight-on at the manufacturer sticker inside the driver’s door frame (B-Pillar)." }
     ]
   },
-  rear_glass: {
+  "Lateral Glass": {
     intact: [
-      { id: 'full_rear', label: 'Full Center Rear View', icon: '🚙', desc: '90° straight on. Checking wiper holes and grids.' },
-      { id: 'rear_stamp', label: 'Technical Corner Stamp', icon: '🔍', desc: 'Macro/Close-up of bottom corner logo.' }
+      { id: "photo1", title: "Photo A: The Position Check (Full Door View)", desc: "90° straight-on facing the door. Confirms FL/RR and encapsulation." },
+      { id: "photo2", title: "Photo B: The 'Bug' (Corner Stamp Macro)", desc: "Extreme close-up of the glass manufacturer logo. Proves Tempered vs Acoustic." }
     ],
     shattered: [
-      { id: 'b_pillar', label: 'B-Pillar Sticker', icon: '🏷️', desc: '90° straight on driver door jamb PR-Codes.' },
-      { id: 'empty_frame', label: 'Empty Hatch/Trunk Frame', icon: '🖼️', desc: 'Full view of the rear frame where glass sat.' }
+      { id: "photo1", title: "Photo 1: The Master Window Switch", desc: "Crystal-clear macro of driver armrest buttons. 'Auto' usually means Acoustic." },
+      { id: "photo2", title: "Photo 2: The Door Channel", desc: "Shot of the empty rubber groove to check thickness." },
+      { id: "photo3", title: "Photo 3: The 'Universal Key' (Service Sticker)", desc: "Sticker in the Driver Door Jamb containing PR-Codes." }
     ]
   },
-  side_glass: {
+  "Rear Glass": {
     intact: [
-      { id: 'full_door', label: 'Full Door/Window View', icon: '🚪', desc: '90° straight on. Verifying encapsulation molding.' },
-      { id: 'side_stamp', label: 'The Bug / Corner Stamp', icon: '🔬', desc: 'Macro close-up. Checking Acoustic vs Tempered.' }
+      { id: "photo1", title: "Photo A: The Hardware Check (Full Rear View)", desc: "90° straight-on from rear bumper. Detects Wiper Hole and body style." },
+      { id: "photo2", title: "Photo B: The Technology Grid (Macro)", desc: "Close-up of glass center/corner to check for integrated antenna lines." }
     ],
     shattered: [
-      { id: 'b_pillar', label: 'B-Pillar Sticker', icon: '🏷️', desc: '90° straight on driver door jamb PR-Codes.' },
-      { id: 'empty_door', label: 'Empty Door Frame', icon: '🖼️', desc: 'Full view of the door frame.' }
+      { id: "photo1", title: "Photo 1: The Wiper Motor Stub", desc: "Tailgate center shot. Metal spindle = hole required. No spindle = solid." },
+      { id: "photo2", title: "Photo 2: The C-Pillar Connectors", desc: "Metal tabs/wires hanging near trunk hinges." },
+      { id: "photo3", title: "Photo 3: The 'Universal Key' (Service Sticker)", desc: "Sticker in Door Jamb or Spare Tire Well." }
     ]
   }
 };
 
-type PositionType = 'windshield' | 'rear_glass' | 'side_glass' | null;
-
 export default function HomeScreen() {
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [vinImage, setVinImage] = useState<string | null>(null);
-  const [position, setPosition] = useState<PositionType>(null);
+  const [position, setPosition] = useState<string>("Front Windshield");
   const [isShattered, setIsShattered] = useState<boolean>(false);
+  const [vinImage, setVinImage] = useState<string | null>(null);
   const [proofImages, setProofImages] = useState<Record<string, string>>({});
   
-  // State for the Instruction Modal
-  const [activeInstruction, setActiveInstruction] = useState<any>(null);
-
-  const vinInputRef = useRef<HTMLInputElement>(null);
-  const proofInputRef = useRef<HTMLInputElement>(null);
-
-  const processImage = (file: File, callback: (base64: string) => void) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = () => callback(reader.result as string);
-    reader.readAsDataURL(file);
-  };
-
-  const handleVinCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      processImage(e.target.files[0], setVinImage);
-      setStep(2); // Auto-advance after VIN
-    }
-  };
-
-  const handleProofCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0] && activeInstruction) {
-      processImage(e.target.files[0], (base64) => {
-        setProofImages(prev => ({ ...prev, [activeInstruction.id]: base64 }));
-        setActiveInstruction(null); // Close modal after capture
-      });
-    }
-  };
-
   const [isDecoding, setIsDecoding] = useState(false);
   const [decodeResults, setDecodeResults] = useState<any>(null);
+
+  // Get the current required checklist based on user selection
+  const currentChecklist = FORENSIC_UI_MAP[position][isShattered ? 'shattered' : 'intact'];
+
+  // Native Camera Handler
+  const handleNativeCapture = (e: React.ChangeEvent<HTMLInputElement>, imageId: string, isVin: boolean = false) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      if (isVin) {
+        setVinImage(base64);
+      } else {
+        setProofImages(prev => ({ ...prev, [imageId]: base64 }));
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleFinalUpload = async () => {
     setIsDecoding(true);
     
-    // === THIS IS STEP 1: THE INTERLEAVED PAYLOAD ===
-    // We are attaching your strict forensic descriptions directly to the images
-    // before we send them to the API.
+    // === THE INTERLEAVED PAYLOAD FIX ===
+    const formattedProofImages: Record<string, string> = {};
+    
+    currentChecklist.forEach((item: any) => {
+      if (proofImages[item.id]) {
+        // We glue the Title AND the Description together here!
+        // This guarantees the AI reads exactly what the human read.
+        const fullAIInstruction = `${item.title} - WHAT TO LOOK FOR: ${item.desc}`;
+        
+        formattedProofImages[fullAIInstruction] = proofImages[item.id];
+      }
+    });
+
     const payload = { 
-      vinImage: vinImage, 
-      position: position, 
-      isShattered: isShattered, 
-      proofImages: {
-        // NOTE: Change 'proofImages.image1' to whatever your actual state variables 
-        // are named in your app (e.g., photoA, photoB, or an array index like proofImages[0])
-        
-        "Photo 1 (Primary Position/Sensor Check): Analyze hardware thickness, sensors, or door placement.": proofImages.image1 || "",
-        
-        "Photo 2 (Macro/Detail Check): Read the glass stamp (Tempered vs Acoustic) or check for heated wires.": proofImages.image2 || "",
-        
-        "Photo 3 (Silhouette/Exterior): Check shade band color, HUD windows, or body style.": proofImages.image3 || ""
-      } 
+      vinImage, 
+      position, 
+      isShattered, 
+      proofImages: formattedProofImages 
     };
-    // ===============================================
 
     try {
-      // Send the beautifully labeled payload to Gemini 3.1 Pro
       const result = await decodeVehiclePhotos(payload);
       setDecodeResults(result);
-      console.log("DECODE SUCCESS:", result);
     } catch (error) {
-      alert("Failed to decode the vehicle. Please try again.");
+      alert("فشل في تحليل البيانات. تأكد من اتصالك بالإنترنت.");
     } finally {
       setIsDecoding(false);
     }
   };
 
-  // Get current requirement list
-  const currentRequirements = position 
-    ? DIAGNOSTIC_PROTOCOLS[position][isShattered ? 'shattered' : 'intact'] 
-    : [];
-
-  const allProofsCaptured = currentRequirements.length > 0 && 
-    currentRequirements.every(req => proofImages[req.id]);
+  // The Sleek Success Badge Component
+  const SuccessBadge = () => (
+    <div className="absolute -top-2 -right-2 bg-green-500 rounded-full p-1 border-2 border-gray-900 shadow-lg z-10">
+      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+      </svg>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center pt-8 px-4 font-sans text-gray-800 pb-20">
+    <div className="min-h-screen bg-gray-900 text-white p-4 pb-24 font-sans">
       
       {/* Header */}
-      <div className="w-full max-w-md flex items-center justify-between bg-white p-4 rounded-xl shadow-sm mb-6 border border-gray-100">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center font-bold">TB</div>
-          <span className="font-bold text-gray-800">Tech Bouncer HQ</span>
-        </div>
-        <button className="text-gray-400 text-sm font-bold hover:text-gray-600">LOGOUT</button>
+      <div className="mb-8 mt-4">
+        <h1 className="text-2xl font-bold tracking-wide">LOWFX <span className="text-blue-500">GLASS</span></h1>
+        <p className="text-gray-400 text-sm mt-1">B2B Homologation & Inventory</p>
       </div>
 
-      <div className="w-full max-w-md bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative">
+      {/* Configuration Selectors */}
+      <div className="bg-gray-800 rounded-xl p-4 mb-6 shadow-lg border border-gray-700">
+        <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Vehicle Configuration</h2>
         
-        {/* STEP 1: VIN Capture */}
-        {step >= 1 && (
-          <div className="mb-8">
-            <h3 className="text-xs font-bold text-gray-400 mb-4 tracking-wider uppercase flex justify-between">
-              <span>1. Global Identifier</span>
-              {step > 1 && <button onClick={() => setStep(1)} className="text-blue-500">EDIT</button>}
-            </h3>
-            
-            <div 
-              onClick={() => step === 1 && vinInputRef.current?.click()}
-              className={`w-full h-24 border-2 border-dashed rounded-xl flex items-center justify-center transition-colors ${
-                vinImage ? 'border-green-400 bg-green-50' : 'border-blue-200 bg-blue-50 cursor-pointer hover:bg-blue-100'
-              }`}
-            >
-              {vinImage ? (
-                <div className="text-green-600 font-bold flex items-center gap-2"><span className="text-2xl">✅</span> VIN EXTRACTED</div>
-              ) : (
-                <div className="text-blue-600 font-bold flex items-center gap-2"><span className="text-2xl">📷</span> SCAN VIN BARCODE</div>
-              )}
-              <input type="file" accept="image/*" capture="environment" ref={vinInputRef} onChange={handleVinCapture} className="hidden" />
-            </div>
-          </div>
-        )}
+        <select 
+          className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white mb-4 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+          value={position}
+          onChange={(e) => { setPosition(e.target.value); setProofImages({}); }}
+        >
+          <option value="Front Windshield">Front Windshield</option>
+          <option value="Lateral Glass">Lateral Glass (Doors)</option>
+          <option value="Rear Glass">Rear Glass (Trunk/Hatch)</option>
+        </select>
 
-        {/* STEP 2: Position & Condition */}
-        {step >= 2 && (
-          <div className="mb-8 animate-fade-in border-t pt-6">
-            <h3 className="text-xs font-bold text-gray-400 mb-4 tracking-wider uppercase flex justify-between">
-              <span>2. Damage Location</span>
-              {step > 2 && <button onClick={() => setStep(2)} className="text-blue-500">EDIT</button>}
-            </h3>
-            
-            <div className="grid grid-cols-3 gap-2 mb-4">
-              {[
-                { id: 'windshield', label: 'FRONT' },
-                { id: 'rear_glass', label: 'REAR' },
-                { id: 'side_glass', label: 'SIDE' }
-              ].map(pos => (
-                <button 
-                  key={pos.id}
-                  onClick={() => setPosition(pos.id as PositionType)}
-                  className={`py-3 rounded-lg font-bold text-xs border transition-colors ${position === pos.id ? 'bg-blue-700 text-white border-blue-700' : 'bg-white text-gray-500 border-gray-200'}`}
-                >
-                  {pos.label}
-                </button>
-              ))}
-            </div>
-
-            {position && (
-              <div className="mt-6 bg-red-50 border border-red-100 p-4 rounded-xl flex items-center justify-between">
-                <div>
-                  <h4 className="font-bold text-red-800 text-sm">Glass Missing/Shattered?</h4>
-                  <p className="text-xs text-red-600 mt-1">Switch to Forensic Hardware Protocol.</p>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" className="sr-only peer" checked={isShattered} onChange={() => setIsShattered(!isShattered)} />
-                  <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-600"></div>
-                </label>
-              </div>
-            )}
-
-            {position && step === 2 && (
-              <button onClick={() => setStep(3)} className="w-full mt-6 bg-gray-900 text-white font-bold py-4 rounded-lg hover:bg-black transition-colors">
-                PROCEED TO PROOFS ➔
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* STEP 3: Dynamic Forensic Proofs */}
-        {step === 3 && position && (
-          <div className="animate-fade-in border-t pt-6">
-            <h3 className="text-xs font-bold text-gray-400 mb-4 tracking-wider uppercase">
-              3. {isShattered ? 'Forensic Protocol Active' : 'Required Proofs'}
-            </h3>
-
-            <div className="flex flex-col gap-3">
-              {currentRequirements.map((req) => (
-                <div key={req.id} className="border border-gray-100 bg-gray-50 rounded-lg p-3 flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${proofImages[req.id] ? 'bg-green-100' : 'bg-blue-100'}`}>
-                      {proofImages[req.id] ? '✅' : req.icon}
-                    </div>
-                    <div>
-                      <span className={`font-bold block text-sm ${proofImages[req.id] ? 'text-green-700' : 'text-gray-800'}`}>
-                        {req.label}
-                      </span>
-                      {proofImages[req.id] && <span className="text-xs text-green-600">Captured securely</span>}
-                    </div>
-                  </div>
-                  
-                  <button 
-                    onClick={() => setActiveInstruction(req)}
-                    className="bg-white border border-gray-200 px-4 py-2 rounded-md text-xs font-bold text-blue-600 shadow-sm"
-                  >
-                    {proofImages[req.id] ? 'RETAKE' : 'CAPTURE'}
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            <button 
-              disabled={!allProofsCaptured}
-              onClick={handleFinalUpload}
-              className={`w-full mt-8 font-bold py-4 rounded-lg transition-colors ${
-                allProofsCaptured ? 'bg-blue-700 text-white hover:bg-blue-800 shadow-lg' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-              }`}
-            >
-              INITIATE AI DECODE ➔
-            </button>
-          </div>
-        )}
+        <div className="flex gap-2">
+          <button 
+            onClick={() => { setIsShattered(false); setProofImages({}); }}
+            className={`flex-1 py-3 rounded-lg text-sm font-bold transition-colors ${!isShattered ? 'bg-blue-600 text-white' : 'bg-gray-900 text-gray-400 border border-gray-700'}`}
+          >
+            Glass Intact
+          </button>
+          <button 
+            onClick={() => { setIsShattered(true); setProofImages({}); }}
+            className={`flex-1 py-3 rounded-lg text-sm font-bold transition-colors ${isShattered ? 'bg-red-600 text-white' : 'bg-gray-900 text-gray-400 border border-gray-700'}`}
+          >
+            Missing / Shattered
+          </button>
+        </div>
       </div>
 
-      {/* --- LIVE AR CAMERA --- */}
-      {activeInstruction && (
-        <CustomCamera 
-          instructionLabel={activeInstruction.label}
-          arabicGuidance={activeInstruction.desc} // We will use your Arabic prompts here later!
-          onCapture={(base64Image) => {
-            // When the Custom Camera takes the photo, save it and close the camera
-            setProofImages(prev => ({ ...prev, [activeInstruction.id]: base64Image }));
-            setActiveInstruction(null);
-          }}
-          onCancel={() => setActiveInstruction(null)}
+      {/* 1. Professional VIN Scanner Card */}
+      <div className="mb-6 relative">
+        <input 
+          type="file" accept="image/*" capture="environment" className="hidden" id="vin-upload"
+          onChange={(e) => handleNativeCapture(e, 'vin', true)}
         />
+        <label htmlFor="vin-upload" className="block w-full bg-gray-800 border border-gray-700 rounded-xl p-5 shadow-lg active:scale-[0.98] transition-transform cursor-pointer relative">
+          {vinImage && <SuccessBadge />}
+          <div className="flex items-center gap-4">
+            <div className={`p-3 rounded-lg ${vinImage ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'}`}>
+              {/* Professional Barcode Icon */}
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-16v16M4 4v16m4-16v16m8-16v16" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="font-bold text-white">Capture VIN Barcode</h3>
+              <p className="text-gray-400 text-xs mt-1">{vinImage ? 'VIN Captured Successfully' : 'Required for precise database matching'}</p>
+            </div>
+          </div>
+        </label>
+      </div>
+
+      {/* 2. Dynamic Forensic Checklist */}
+      <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Required Diagnostic Photos</h2>
+      <div className="space-y-4">
+        {currentChecklist.map((item: any) => (
+          <div key={item.id} className="relative">
+            <input 
+              type="file" accept="image/*" capture="environment" className="hidden" id={`upload-${item.id}`}
+              onChange={(e) => handleNativeCapture(e, item.id)}
+            />
+            <label htmlFor={`upload-${item.id}`} className="block w-full bg-gray-800 border border-gray-700 rounded-xl p-4 shadow-lg active:scale-[0.98] transition-transform cursor-pointer relative">
+              {proofImages[item.id] && <SuccessBadge />}
+              <div className="flex justify-between items-start gap-4">
+                <div className="flex-1">
+                  <h3 className={`font-bold text-sm ${proofImages[item.id] ? 'text-green-400' : 'text-blue-400'}`}>
+                    {item.title}
+                  </h3>
+                  <p className="text-gray-400 text-xs mt-2 leading-relaxed">{item.desc}</p>
+                </div>
+                
+                {/* Image Thumbnail Preview */}
+                <div className="w-16 h-16 shrink-0 rounded-lg bg-gray-900 border border-gray-700 flex items-center justify-center overflow-hidden">
+                  {proofImages[item.id] ? (
+                    <img src={proofImages[item.id]} alt="Captured" className="w-full h-full object-cover" />
+                  ) : (
+                    <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                  )}
+                </div>
+              </div>
+            </label>
+          </div>
+        ))}
+      </div>
+
+      {/* Decode Results Panel */}
+      {decodeResults && (
+        <div className="mt-8 bg-blue-900/30 border border-blue-500/50 rounded-xl p-5 backdrop-blur-sm">
+          <h3 className="font-bold text-blue-400 mb-2">AI Decode Complete</h3>
+          <p className="text-sm"><span className="text-gray-400">VIN:</span> {decodeResults.decodedVIN}</p>
+          <p className="text-sm mt-1"><span className="text-gray-400">Eurocode:</span> <span className="font-mono text-white font-bold">{decodeResults.eurocode}</span></p>
+          <p className="text-xs text-gray-300 mt-3 pt-3 border-t border-blue-500/30">{decodeResults.analysisNotes}</p>
+        </div>
       )}
+
+      {/* Big Blue Upload Button */}
+      <div className="fixed bottom-0 left-0 w-full p-4 bg-gradient-to-t from-gray-900 via-gray-900 to-transparent">
+        <button 
+          onClick={handleFinalUpload}
+          disabled={isDecoding || !vinImage || Object.keys(proofImages).length < currentChecklist.length}
+          className={`w-full py-4 rounded-xl font-bold text-lg shadow-xl transition-all ${
+            isDecoding ? 'bg-gray-700 text-gray-400 cursor-wait' :
+            (!vinImage || Object.keys(proofImages).length < currentChecklist.length) ? 'bg-gray-800 text-gray-600' : 'bg-blue-600 text-white active:scale-95'
+          }`}
+        >
+          {isDecoding ? 'جاري التحليل بالذكاء الاصطناعي...' : 'INITIATE AI DECODE'}
+        </button>
+      </div>
 
     </div>
   );
