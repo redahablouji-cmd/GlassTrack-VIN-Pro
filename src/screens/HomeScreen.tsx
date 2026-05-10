@@ -42,6 +42,9 @@ export default function HomeScreen() {
   const [position, setPosition] = useState<string>("Front Windshield");
   const [isShattered, setIsShattered] = useState<boolean>(false);
   
+  // NEW: Reference Code Format Selector
+  const [referenceFormat, setReferenceFormat] = useState<string>("Eurocode");
+  
   const [vinImage, setVinImage] = useState<string | null>(null);
   const [proofImages, setProofImages] = useState<Record<string, string>>({});
   
@@ -53,7 +56,6 @@ export default function HomeScreen() {
 
   const currentChecklist = FORENSIC_UI_MAP[position][isShattered ? 'shattered' : 'intact'];
 
-  // === UPGRADED SMART COMPRESSOR ===
   // === BULLETPROOF COMPRESSOR ===
   const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -91,14 +93,13 @@ export default function HomeScreen() {
 
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
             
-            // Check if canvas successfully created the image
             const finalImage = canvas.toDataURL('image/jpeg', 0.8);
             if (finalImage === "data:,") throw new Error("Canvas produced empty image");
             
             resolve(finalImage);
           } catch (err) {
             console.warn("Compression failed, sending original.", err);
-            resolve(base64Data); // Fallback to original
+            resolve(base64Data); 
           }
         };
 
@@ -148,16 +149,10 @@ export default function HomeScreen() {
       }
     } catch (err: any) {
       console.error("RAW CRASH DATA:", err);
-      
-      // Bulletproof error extraction: if err.message doesn't exist, stringify the whole error object
       let exactError = "Unknown Crash";
-      if (err?.message) {
-        exactError = err.message;
-      } else if (typeof err === 'string') {
-        exactError = err;
-      } else {
-        exactError = JSON.stringify(err);
-      }
+      if (err?.message) exactError = err.message;
+      else if (typeof err === 'string') exactError = err;
+      else exactError = JSON.stringify(err);
       
       setImageErrors(prev => ({ ...prev, [imageId]: `⚠️ Error: ${exactError}` }));
     } finally {
@@ -175,7 +170,14 @@ export default function HomeScreen() {
       }
     });
 
-    const payload = { vinImage, position, isShattered, proofImages: formattedProofImages };
+    // NEW: We now send the requested referenceFormat to the API payload
+    const payload = { 
+      vinImage, 
+      position, 
+      isShattered, 
+      referenceFormat,
+      proofImages: formattedProofImages 
+    };
 
     try {
       const result = await decodeVehiclePhotos(payload);
@@ -201,6 +203,7 @@ export default function HomeScreen() {
 
       <div className="bg-gray-800 rounded-xl p-4 mb-6 shadow-lg border border-gray-700">
         <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Vehicle Configuration</h2>
+        
         <select 
           className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white mb-4 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
           value={position}
@@ -210,6 +213,19 @@ export default function HomeScreen() {
           <option value="Lateral Glass">Lateral Glass (Doors)</option>
           <option value="Rear Glass">Rear Glass (Trunk/Hatch)</option>
         </select>
+
+        {/* NEW DROPDOWN: Target Reference Format */}
+        <select 
+          className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white mb-4 focus:border-blue-500 outline-none"
+          value={referenceFormat}
+          onChange={(e) => setReferenceFormat(e.target.value)}
+        >
+          <option value="Eurocode">Extract Standard Eurocode</option>
+          <option value="NAGS">Extract NAGS Code</option>
+          <option value="Descriptive">Extract Descriptive Code (e.g., Hyundai Santa Fe...)</option>
+          <option value="OEM">Extract OEM Part Number</option>
+        </select>
+
         <div className="flex gap-2">
           <button onClick={() => { setIsShattered(false); setProofImages({}); setPreviewImages({}); setImageErrors({}); }} className={`flex-1 py-3 rounded-lg text-sm font-bold transition-colors ${!isShattered ? 'bg-blue-600 text-white' : 'bg-gray-900 text-gray-400 border border-gray-700'}`}>Glass Intact</button>
           <button onClick={() => { setIsShattered(true); setProofImages({}); setPreviewImages({}); setImageErrors({}); }} className={`flex-1 py-3 rounded-lg text-sm font-bold transition-colors ${isShattered ? 'bg-red-600 text-white' : 'bg-gray-900 text-gray-400 border border-gray-700'}`}>Missing / Shattered</button>
@@ -294,12 +310,22 @@ export default function HomeScreen() {
         ))}
       </div>
 
+      {/* NEW: Updated Results Section based on Gemini 3.1 Pro Schema */}
       {decodeResults && (
-        <div className="mt-8 bg-blue-900/30 border border-blue-500/50 rounded-xl p-5 backdrop-blur-sm">
-          <h3 className="font-bold text-blue-400 mb-2">AI Decode Complete</h3>
-          <p className="text-sm"><span className="text-gray-400">VIN:</span> {decodeResults.decodedVIN}</p>
-          <p className="text-sm mt-1"><span className="text-gray-400">Eurocode:</span> <span className="font-mono text-white font-bold">{decodeResults.eurocode}</span></p>
-          <p className="text-xs text-gray-300 mt-3 pt-3 border-t border-blue-500/30">{decodeResults.analysisNotes}</p>
+        <div className={`mt-8 border rounded-xl p-5 backdrop-blur-sm ${decodeResults.needsMorePhotos ? 'bg-red-900/30 border-red-500/50' : 'bg-blue-900/30 border-blue-500/50'}`}>
+          <h3 className={`font-bold mb-2 ${decodeResults.needsMorePhotos ? 'text-red-400' : 'text-blue-400'}`}>
+            {decodeResults.needsMorePhotos ? '⚠️ AI requires more information' : '✅ AI Decode Complete'}
+          </h3>
+          
+          {decodeResults.needsMorePhotos ? (
+            <p className="text-sm text-white">{decodeResults.missingPhotoReason}</p>
+          ) : (
+            <>
+              <p className="text-sm"><span className="text-gray-400">VIN:</span> {decodeResults.decodedVIN}</p>
+              <p className="text-sm mt-1"><span className="text-gray-400">{referenceFormat}:</span> <span className="font-mono text-white font-bold">{decodeResults.requestedCode}</span></p>
+              <p className="text-xs text-gray-300 mt-3 pt-3 border-t border-blue-500/30">{decodeResults.reasoningSummary}</p>
+            </>
+          )}
         </div>
       )}
 
