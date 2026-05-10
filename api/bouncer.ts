@@ -10,36 +10,63 @@ export default async function handler(req: any, res: any) {
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    // Explicitly using the Flash model for the live camera pulse
+    // We strictly use 2.5 Flash here because it is the fastest model for image validation
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-    const prompt = `You are a live, highly intelligent Auto Glass Expert supervisor watching a technician's camera feed in real-time.
-    The technician is trying to photograph the: "${part}".
-    
-    Look carefully at the provided image. Act like a human supervisor talking directly to the technician through an earpiece. 
-    
-    If the image is wrong, tell them EXACTLY what you see in the frame and how to correct it. Speak in natural, conversational Arabic. Do not use generic, pre-programmed responses. Be dynamic and highly specific to the photo.
-    
-    Respond ONLY with a valid JSON object in this format:
+    // === THIS IS THE "PROMPT" HARDCODED INTO YOUR APP ===
+    const gatekeeperInstructions = `You are a strict Image Validation Gatekeeper for an automotive B2B inventory system. 
+    YOUR ONLY JOB: Verify that the technician captured the requested physical area of the vehicle from the correct angle, and that the image is in focus.
+
+    CRITICAL DIRECTIVE: DO NOT evaluate the car parts themselves. DO NOT look for specific features (e.g., do not look for wires, rain sensors, HUD holes, or wiper motors). Your only job is to confirm the required physical ZONE is visible. If the requested area is clearly visible, properly framed, and in focus, the photo PASSES—even if that area is completely empty, bare, or devoid of specific hardware.
+
+    You are evaluating the following Expected Photo Type: "${part}"
+
+    Evaluate the image strictly against these rules:
+
+    === 1. INTACT FRONT WINDSHIELD ===
+    * Photo A (Sensor Depth): PASS if the side profile of the rearview mirror mount is visible. FAIL if straight-on or blurry.
+    * Photo B (Heater Grid): PASS if the black bottom edge where wipers rest is in focus. FAIL if glare ruins it or zoomed out too far.
+    * Photo C (Silhouette & Tint): PASS if the entire front windshield is visible straight-on. FAIL if corners are cut off.
+
+    === 2. INTACT LATERAL GLASS ===
+    * Photo A (Position Check): PASS if the entire car door and window are fully visible straight-on. FAIL if distorted angle.
+    * Photo B (The "Bug" Stamp): PASS if text/logos on the glass are clear and in focus. FAIL if unreadable.
+
+    === 3. INTACT TRUNK / REAR GLASS ===
+    * Photo A (Hardware Check): PASS if the entire rear window is visible straight-on. FAIL if corners cut off.
+    * Photo B (Technology Grid): PASS if the glass surface is in focus. FAIL if focused on a reflection instead.
+
+    === 4. MISSING / BROKEN GLASS (PROXY PHOTOS) ===
+    * The Service Sticker: PASS if the white/silver build sticker text is readable. FAIL if blurry.
+    * Headliner Harness: PASS if the interior roof liner above the rearview mirror is in focus. FAIL if pointed down.
+    * HUD Dashboard Check: PASS if flat view across the driver dashboard top. FAIL if pointed at steering wheel.
+    * Master Window Switch: PASS if driver door buttons are in clear macro focus. FAIL if taken from afar.
+    * The Door Channel: PASS if the empty rubber window track is in focus. FAIL if track is in dark shadows.
+    * Wiper Motor Stub Area: PASS if center tailgate metal (under window) is in focus. FAIL if pointed at bumper.
+    * C-Pillar Connectors: PASS if interior trunk side-frame near hinges is visible. FAIL if pointed at trunk floor.
+
+    === REQUIRED OUTPUT ===
+    Respond ONLY with a valid JSON object:
     {
       "isPerfect": boolean,
-      "arabicInstruction": "If true, reply with '✅ زاوية ممتازة، التقط الصورة الآن!'. If false, give your dynamic, live Arabic feedback. (Examples of how you should talk: 'أنا أرى سقف السيارة فقط، يرجى خفض الكاميرا قليلاً لتصوير المرآة' [I only see the car roof, please lower the camera a bit to capture the mirror] OR 'الضوء يعكس بشدة على الزجاج ولا يمكنني قراءة الختم، حاول تغيير زاويتك' [The light is reflecting heavily on the glass and I cannot read the stamp, try changing your angle])."
+      "arabicInstruction": "If true, return '✅'. If false, give a short, specific Arabic instruction to the technician on how to fix the angle, focus, or lighting based on your failure criteria."
     }`;
 
+    // Convert the base64 string back into a format Gemini can read
     const base64Data = image.replace(/^data:image\/(png|jpeg|jpg);base64,/, "");
 
+    // Send the image AND the strict rules to Gemini 2.5 Flash
     const result = await model.generateContent([
-      prompt,
+      gatekeeperInstructions,
       { inlineData: { data: base64Data, mimeType: "image/jpeg" } }
     ]);
-    
+
+    // Clean up the response and send it back to your HomeScreen
     const cleanJson = result.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
     return res.status(200).json(JSON.parse(cleanJson));
 
   } catch (error: any) {
-    console.error("AI Bouncer Error:", error);
-    // Force the exact Google error message to be sent to the frontend
-    const errorMessage = error?.message || error?.toString() || "Unknown AI Error";
-    return res.status(500).json({ error: errorMessage });
+    console.error("Gatekeeper Error:", error);
+    return res.status(500).json({ error: error.message || "Unknown AI Error" });
   }
 }

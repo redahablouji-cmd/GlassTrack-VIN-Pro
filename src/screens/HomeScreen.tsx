@@ -4,36 +4,36 @@ import { analyzeLiveFrame, decodeVehiclePhotos } from '../services/api';
 const FORENSIC_UI_MAP: any = {
   "Front Windshield": {
     intact: [
-      { id: "photo1", title: "Photo A: The Sensor Depth (Interior Side-View)", desc: "45° angle from the passenger seat looking toward the rearview mirror bracket. Shows Rain Sensor/LDWS profile." },
-      { id: "photo2", title: "Photo B: The Heater Grid (Exterior Cowl-View)", desc: "Looking down at a 45° angle at the black area where wiper blades rest. Look for heated orange wires." },
-      { id: "photo3", title: "Photo C: The Silhouette & Tint (Full Exterior)", desc: "90° straight-on from the front. Confirms Shade Band and HUD windows." }
+      { id: "photo1", title: "Photo A: The Sensor Depth (Interior Side-View)", desc: "45° angle from passenger seat. Focus on the rearview mirror physical mounting base (even if it's just bare plastic)." },
+      { id: "photo2", title: "Photo B: The Heater Grid (Exterior Cowl-View)", desc: "45° angle looking down at the black glass edge where wipers rest. Keep the area in focus." },
+      { id: "photo3", title: "Photo C: The Silhouette & Tint (Full Exterior)", desc: "90° straight-on exterior. Ensure the entire shape of the front windshield fits clearly in the frame." }
     ],
     shattered: [
-      { id: "photo1", title: "Photo 1: The Headliner Harness", desc: "Close-up above rearview mirror. Look for dangling 10-pin green connector or LVDS cable." },
-      { id: "photo2", title: "Photo 2: The HUD 'Well'", desc: "Flat shot across driver dashboard looking for a deep rectangular sink/hole." },
-      { id: "photo3", title: "Photo 3: The 'Universal Key' (Service Sticker)", desc: "90° straight-on at the manufacturer sticker inside the driver’s door frame (B-Pillar)." }
+      { id: "photo1", title: "Photo 1: The Headliner Harness", desc: "Close-up of the interior ceiling directly above the mirror. Keep the headliner/wires in focus." },
+      { id: "photo2", title: "Photo 2: The HUD 'Well'", desc: "Flat shot across the driver-side dashboard top. Keep the surface near the glass line in focus." },
+      { id: "photo3", title: "Photo 3: The 'Universal Key' (Service Sticker)", desc: "Clear, straight-on macro shot of the manufacturer build sticker (B-Pillar). Text must be perfectly readable." }
     ]
   },
   "Lateral Glass": {
     intact: [
-      { id: "photo1", title: "Photo A: The Position Check (Full Door View)", desc: "90° straight-on facing the door. Confirms FL/RR and encapsulation." },
-      { id: "photo2", title: "Photo B: The 'Bug' (Corner Stamp Macro)", desc: "Extreme close-up of the glass manufacturer logo. Proves Tempered vs Acoustic." }
+      { id: "photo1", title: "Photo A: The Position Check (Full Door View)", desc: "90° straight-on. Ensure the entire car door and window fit clearly in the frame." },
+      { id: "photo2", title: "Photo B: The 'Bug' (Corner Stamp Macro)", desc: "Extreme close-up of the printed text/logo on the glass. Text must be perfectly in focus and readable." }
     ],
     shattered: [
-      { id: "photo1", title: "Photo 1: The Master Window Switch", desc: "Crystal-clear macro of driver armrest buttons. 'Auto' usually means Acoustic." },
-      { id: "photo2", title: "Photo 2: The Door Channel", desc: "Shot of the empty rubber groove to check thickness." },
-      { id: "photo3", title: "Photo 3: The 'Universal Key' (Service Sticker)", desc: "Sticker in the Driver Door Jamb containing PR-Codes." }
+      { id: "photo1", title: "Photo 1: The Master Window Switch", desc: "Macro close-up of the window control buttons on the driver armrest. Icons must be in focus." },
+      { id: "photo2", title: "Photo 2: The Door Channel", desc: "Focus strictly on the empty window frame (rubber groove/track) at the top of the open door." },
+      { id: "photo3", title: "Photo 3: The 'Universal Key' (Service Sticker)", desc: "Clear, straight-on macro shot of the manufacturer build sticker (B-Pillar). Text must be perfectly readable." }
     ]
   },
   "Rear Glass": {
     intact: [
-      { id: "photo1", title: "Photo A: The Hardware Check (Full Rear View)", desc: "90° straight-on from rear bumper. Detects Wiper Hole and body style." },
-      { id: "photo2", title: "Photo B: The Technology Grid (Macro)", desc: "Close-up of glass center/corner to check for integrated antenna lines." }
+      { id: "photo1", title: "Photo A: The Hardware Check (Full Rear View)", desc: "90° straight-on exterior. Ensure the entire rear window fits clearly in the frame." },
+      { id: "photo2", title: "Photo B: The Technology Grid (Macro)", desc: "Close-up focused directly on the glass surface (ensure the camera does not focus on reflections)." }
     ],
     shattered: [
-      { id: "photo1", title: "Photo 1: The Wiper Motor Stub", desc: "Tailgate center shot. Metal spindle = hole required. No spindle = solid." },
-      { id: "photo2", title: "Photo 2: The C-Pillar Connectors", desc: "Metal tabs/wires hanging near trunk hinges." },
-      { id: "photo3", title: "Photo 3: The 'Universal Key' (Service Sticker)", desc: "Sticker in Door Jamb or Spare Tire Well." }
+      { id: "photo1", title: "Photo 1: The Wiper Motor Stub", desc: "Focus on the center metal of the tailgate exactly where the bottom of the glass used to be." },
+      { id: "photo2", title: "Photo 2: The C-Pillar Connectors", desc: "Focus on the interior side-frame (C-pillar) near the top trunk hinges." },
+      { id: "photo3", title: "Photo 3: The 'Universal Key' (Service Sticker)", desc: "Clear, straight-on macro shot of the manufacturer build sticker. Text must be perfectly readable." }
     ]
   }
 };
