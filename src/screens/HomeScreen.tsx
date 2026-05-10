@@ -70,9 +70,11 @@ export default function HomeScreen() {
           ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
           resolve(canvas.toDataURL('image/jpeg', 0.75));
         };
-        img.onerror = (err) => reject(err);
+        // FIX: Force readable errors
+        img.onerror = () => reject(new Error("Browser failed to process the image pixels."));
       };
-      reader.onerror = (err) => reject(err);
+      // FIX: Force readable errors
+      reader.onerror = () => reject(new Error("Browser failed to read the file."));
     });
   };
 

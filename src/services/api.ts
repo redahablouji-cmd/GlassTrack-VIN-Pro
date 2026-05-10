@@ -3,32 +3,23 @@
 /**
  * Sends a live camera frame to the Vercel AI Bouncer to get real-time Arabic guidance.
  */
-export const analyzeLiveFrame = async (frameBase64: string, expectedPart: string) => {
+export const analyzeLiveFrame = async (image: string, part: string) => {
   try {
     const response = await fetch('/api/bouncer', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: frameBase64, part: expectedPart }),
+      body: JSON.stringify({ image, part })
     });
 
+    // If Vercel throws a 500 or 413, this forces the app to grab the exact text
     if (!response.ok) {
-      // Grab the EXACT error text from our Vercel catch block
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `HTTP ${response.status}`);
+      const errorText = await response.text();
+      throw new Error(`Vercel Error ${response.status}: ${errorText}`);
     }
 
-    const data = await response.json();
-    return data as { isPerfect: boolean; arabicInstruction: string };
-    
+    return await response.json();
   } catch (error: any) {
-    console.error("Failed to ping AI Bouncer:", error);
-    
-    // Pass the raw error straight to the CustomCamera.tsx state
-    return { 
-      isPerfect: false, 
-      arabicInstruction: 'تم إيقاف الاتصال', // "Connection Stopped"
-      systemError: `Google API Error: ${error.message}` 
-    };
+    throw new Error(error.message || "Failed to reach the server. Check your connection.");
   }
 };
 /**
