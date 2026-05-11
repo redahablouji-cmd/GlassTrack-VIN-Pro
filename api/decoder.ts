@@ -10,15 +10,15 @@ export default async function handler(req: any, res: any) {
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    // Use the heavy-hitting Pro model for deep B2B logic extraction
+    // Using 3.1 Flash Lite for testing as you have the 500/day quota
     const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" }); 
 
     const promptSequence: any[] = [];
 
     // === THE MASTER SYSTEM PROMPT ===
-    promptSequence.push(`You are an elite B2B Auto Glass Decoding AI. Your objective is to analyze a vehicle's VIN and physical photos to determine the exact 100% accurate replacement glass code.
+    promptSequence.push(`You are an elite B2B Auto Glass Decoding AI. Your objective is to analyze a vehicle's VIN and physical photos to determine the exact 100% accurate replacement glass codes.
 
-    TARGET FORMAT REQUESTED: ${referenceFormat}
+    PRIMARY FORMAT REQUESTED: ${referenceFormat}
     DAMAGE LOCATION: ${position.toUpperCase()}
     GLASS STATUS: ${isShattered ? "MISSING/SHATTERED" : "INTACT"}
     
@@ -30,21 +30,21 @@ export default async function handler(req: any, res: any) {
        - Rule: If there is NO clear lens cutout in the exterior frit, there is NO CAMERA, regardless of how massive the interior plastic shroud is.
     2. Rain/Light Sensor Verification:
        - CROSS-REFERENCE: Look at the exterior frit. Do you see a small circular gel pad or clear window with diodes?
-       - Rule: A rain sensor requires a physical gel pad window visible from the outside.
     3. Heated Wiper Verification:
        - Look at the exterior cowl photo. Are there orange/copper wires embedded in the bottom black frit?
     4. Acoustic / Tint Verification:
-       - Check the corner glass stamp photo for 'Acoustic' or an ear symbol, and verify the shade band color.
+       - Check the corner glass stamp photo for 'Acoustic' or an ear symbol.
 
     === OUTPUT REQUIREMENT ===
-    Respond ONLY with a valid JSON object in this exact format. Do NOT use line breaks inside JSON strings.
+    Respond ONLY with a valid JSON object using exactly these keys. Do NOT use line breaks inside JSON strings.
     {
-      "needsMorePhotos": boolean, // Set to true ONLY if a critical reflection/glare makes it impossible to verify the required hardware.
-      "missingPhotoReason": "If needsMorePhotos is true, explain exactly what new angle is needed. If false, leave blank.",
-      "decodedVIN": "The 17-digit VIN (if visible)",
-      "requestedCode": "The final deduced ${referenceFormat} code (e.g. Eurocode, NAGS, or descriptive format like 'Hyundai Santa Fe (2013-2018) - Windshield: Acoustic, Auto-Dimming...')",
+      "needsMorePhotos": false,
+      "missingPhotoReason": "If needsMorePhotos is true, explain what specific angle is missing. Otherwise leave empty.",
+      "decodedVIN": "The 17-digit VIN text",
+      "primaryCode": "The deduced ${referenceFormat} code (e.g. Eurocode or NAGS)",
+      "descriptiveCode": "The full descriptive text (e.g. 'Hyundai Santa Fe (2013-2018) - Windshield: Acoustic Glass, Solar/Tinted. No LDWS, No Rain Sensor.')",
       "confidence": "High, Medium, or Low",
-      "reasoningSummary": "Provide a very high-level summary of your reasoning in a few sentences, omitting intermediate steps. Keep only the most direct hardware verification steps leading to the final answer (e.g. 'Interior shroud present, but exterior frit lacks camera cutout. Camera verified absent. Code generated.')."
+      "reasoningSummary": "One short sentence explaining your hardware findings (e.g. 'Interior shroud present, but exterior frit lacks camera cutout. Camera absent.')."
     }`);
 
     if (vinImage) {
@@ -66,9 +66,7 @@ export default async function handler(req: any, res: any) {
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error("AI did not return valid JSON structure.");
     
-    // Strip hidden formatting to prevent UI crashes
     const cleanJson = jsonMatch[0].replace(/[\n\r\t]/g, ' ');
-
     return res.status(200).json(JSON.parse(cleanJson));
 
   } catch (error: any) {

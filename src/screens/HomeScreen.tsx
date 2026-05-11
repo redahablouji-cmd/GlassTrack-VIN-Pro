@@ -215,6 +215,7 @@ export default function HomeScreen() {
         </select>
 
         {/* NEW DROPDOWN: Target Reference Format */}
+        {/* NEW DROPDOWN: Target Reference Format */}
         <select 
           className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white mb-4 focus:border-blue-500 outline-none"
           value={referenceFormat}
@@ -222,8 +223,6 @@ export default function HomeScreen() {
         >
           <option value="Eurocode">Extract Standard Eurocode</option>
           <option value="NAGS">Extract NAGS Code</option>
-          <option value="Descriptive">Extract Descriptive Code (e.g., Hyundai Santa Fe...)</option>
-          <option value="OEM">Extract OEM Part Number</option>
         </select>
 
         <div className="flex gap-2">
@@ -310,21 +309,41 @@ export default function HomeScreen() {
         ))}
       </div>
 
-      {/* NEW: Updated Results Section based on Gemini 3.1 Pro Schema */}
+      {/* NEW: Upgraded Results Card with Descriptive Code */}
       {decodeResults && (
-        <div className={`mt-8 border rounded-xl p-5 backdrop-blur-sm ${decodeResults.needsMorePhotos ? 'bg-red-900/30 border-red-500/50' : 'bg-blue-900/30 border-blue-500/50'}`}>
-          <h3 className={`font-bold mb-2 ${decodeResults.needsMorePhotos ? 'text-red-400' : 'text-blue-400'}`}>
-            {decodeResults.needsMorePhotos ? '⚠️ AI requires more information' : '✅ AI Decode Complete'}
+        <div className={`mt-8 mb-24 border rounded-xl p-5 backdrop-blur-sm shadow-2xl ${decodeResults.needsMorePhotos ? 'bg-red-900/30 border-red-500/50' : 'bg-blue-900/20 border-blue-500/50'}`}>
+          <h3 className={`font-bold text-lg mb-4 pb-3 border-b ${decodeResults.needsMorePhotos ? 'text-red-400 border-red-500/30' : 'text-blue-400 border-blue-500/30'}`}>
+            {decodeResults.needsMorePhotos ? '⚠️ AI Requires More Information' : '✅ AI Decode Complete'}
           </h3>
           
           {decodeResults.needsMorePhotos ? (
-            <p className="text-sm text-white">{decodeResults.missingPhotoReason}</p>
+            <p className="text-sm text-white font-medium leading-relaxed">{decodeResults.missingPhotoReason}</p>
           ) : (
-            <>
-              <p className="text-sm"><span className="text-gray-400">VIN:</span> {decodeResults.decodedVIN}</p>
-              <p className="text-sm mt-1"><span className="text-gray-400">{referenceFormat}:</span> <span className="font-mono text-white font-bold">{decodeResults.requestedCode}</span></p>
-              <p className="text-xs text-gray-300 mt-3 pt-3 border-t border-blue-500/30">{decodeResults.reasoningSummary}</p>
-            </>
+            <div className="space-y-4">
+              {/* The VIN Row */}
+              <div className="flex justify-between items-center bg-gray-900/60 p-3 rounded-lg border border-gray-700/50">
+                <span className="text-gray-400 text-xs font-bold uppercase tracking-wider">VIN Detected</span>
+                <span className="text-white font-mono font-bold tracking-wider">{decodeResults.decodedVIN || "Unknown"}</span>
+              </div>
+              
+              {/* The Primary Code Row (Eurocode/NAGS) */}
+              <div className="flex justify-between items-center bg-blue-600/20 border border-blue-500/40 p-4 rounded-lg">
+                <span className="text-blue-300 text-xs font-bold uppercase tracking-wider">{referenceFormat}</span>
+                <span className="text-white font-mono text-2xl font-black tracking-widest">{decodeResults.primaryCode || "N/A"}</span>
+              </div>
+
+              {/* The Descriptive Code Block (Always Present) */}
+              <div className="bg-gray-800/80 border border-gray-600 p-4 rounded-lg shadow-inner">
+                <span className="block text-gray-400 text-xs font-bold uppercase mb-2 tracking-wider">Detailed Description</span>
+                <span className="text-gray-100 text-sm leading-relaxed font-medium">{decodeResults.descriptiveCode || "No description provided."}</span>
+              </div>
+
+              {/* The Reasoning Footer */}
+              <p className="text-xs text-gray-400 mt-2 pt-3 border-t border-blue-500/20 italic leading-relaxed">
+                <span className="font-bold text-blue-300 not-italic">AI Logic: </span>
+                {decodeResults.reasoningSummary || "No reasoning provided."}
+              </p>
+            </div>
           )}
         </div>
       )}
