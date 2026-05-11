@@ -10,12 +10,11 @@ export default async function handler(req: any, res: any) {
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    // Using 3.1 Flash Lite for testing as you have the 500/day quota
     const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" }); 
 
     const promptSequence: any[] = [];
 
-    // === THE MASTER SYSTEM PROMPT ===
+    // === THE CHAIN-OF-THOUGHT MASTER PROMPT ===
     promptSequence.push(`You are an elite B2B Auto Glass Decoding AI. Your objective is to analyze a vehicle's VIN and physical photos to determine the exact 100% accurate replacement glass codes.
 
     PRIMARY FORMAT REQUESTED: ${referenceFormat}
@@ -23,28 +22,24 @@ export default async function handler(req: any, res: any) {
     GLASS STATUS: ${isShattered ? "MISSING/SHATTERED" : "INTACT"}
     
     CRITICAL HARDWARE VERIFICATION RULES:
-    You are strictly forbidden from assuming hardware exists based solely on interior plastic shrouds. You MUST verify hardware by cross-referencing the interior and exterior photos.
+    You MUST verify hardware by cross-referencing the interior and exterior photos. Do not assume hardware exists based on interior plastic covers.
     
-    1. Camera / LDWS Verification:
-       - CROSS-REFERENCE: Look at the exterior top windshield photo. Does the black dotted area (frit) have a clear geometric cutout (trapezoid or triangle) for a camera lens to physically see the road?
-       - Rule: If there is NO clear lens cutout in the exterior frit, there is NO CAMERA, regardless of how massive the interior plastic shroud is.
-    2. Rain/Light Sensor Verification:
-       - CROSS-REFERENCE: Look at the exterior frit. Do you see a small circular gel pad or clear window with diodes?
-    3. Heated Wiper Verification:
-       - Look at the exterior cowl photo. Are there orange/copper wires embedded in the bottom black frit?
-    4. Acoustic / Tint Verification:
-       - Check the corner glass stamp photo for 'Acoustic' or an ear symbol.
+    1. Camera Verification: Look at the interior mirror bracket. Then, CROSS-REFERENCE the exterior top windshield photo. If the exterior black dotted area (frit) has NO clear geometric cutout (trapezoid/triangle) for a lens, there is NO CAMERA, even if the interior plastic shroud is massive.
+    2. Sensor Verification: A rain sensor requires a physical circular gel pad visible in the exterior frit.
+    3. Heater Verification: Look at the exterior bottom wipers. Are there orange/copper wires embedded in the black glass?
+    4. Acoustic / Tint Verification: Check the corner glass stamp photo for 'Acoustic' or an ear symbol.
 
     === OUTPUT REQUIREMENT ===
-    Respond ONLY with a valid JSON object using exactly these keys. Do NOT use line breaks inside JSON strings.
+    Respond ONLY with a valid JSON object. Do NOT use line breaks inside JSON strings. 
+    You MUST write the "internalVerificationCheck" BEFORE generating the final codes so you can calculate the correct answer.
+
     {
       "needsMorePhotos": false,
-      "missingPhotoReason": "If needsMorePhotos is true, explain what specific angle is missing. Otherwise leave empty.",
+      "missingPhotoReason": "If true, explain what is missing. If false, leave blank.",
       "decodedVIN": "The 17-digit VIN text",
-      "primaryCode": "The deduced ${referenceFormat} code (e.g. Eurocode or NAGS)",
-      "descriptiveCode": "The full descriptive text (e.g. 'Hyundai Santa Fe (2013-2018) - Windshield: Acoustic Glass, Solar/Tinted. No LDWS, No Rain Sensor.')",
-      "confidence": "High, Medium, or Low",
-      "reasoningSummary": "One short sentence explaining your hardware findings (e.g. 'Interior shroud present, but exterior frit lacks camera cutout. Camera absent.')."
+      "internalVerificationCheck": "Write your Chain of Thought here. Example: 'Interior shows massive shroud. Cross-referencing exterior: Frit is solid black, no camera cutout. Cowl shows no copper wires. Therefore: Camera=False, Sensor=True, Heater=False.'",
+      "primaryCode": "The final ${referenceFormat} code (e.g. 7653AGAMVZ)",
+      "descriptiveCode": "Full descriptive text (e.g. 'Hyundai Santa Fe - Acoustic Glass, Rain Sensor, NO Camera, NO Heater.')"
     }`);
 
     if (vinImage) {

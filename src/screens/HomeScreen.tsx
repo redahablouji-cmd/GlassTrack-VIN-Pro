@@ -310,6 +310,7 @@ export default function HomeScreen() {
       </div>
 
       {/* NEW: Upgraded Results Card with Descriptive Code */}
+      {/* NEW: Results Card with Chain-of-Thought Debugging */}
       {decodeResults && (
         <div className={`mt-8 mb-24 border rounded-xl p-5 backdrop-blur-sm shadow-2xl ${decodeResults.needsMorePhotos ? 'bg-red-900/30 border-red-500/50' : 'bg-blue-900/20 border-blue-500/50'}`}>
           <h3 className={`font-bold text-lg mb-4 pb-3 border-b ${decodeResults.needsMorePhotos ? 'text-red-400 border-red-500/30' : 'text-blue-400 border-blue-500/30'}`}>
@@ -320,29 +321,36 @@ export default function HomeScreen() {
             <p className="text-sm text-white font-medium leading-relaxed">{decodeResults.missingPhotoReason}</p>
           ) : (
             <div className="space-y-4">
+              
+              {/* THE AI LOGIC DEBUGGER (Chain of Thought) */}
+              <div className="bg-yellow-900/20 border border-yellow-500/40 p-4 rounded-lg shadow-inner">
+                <span className="flex items-center gap-2 text-yellow-400 text-xs font-bold uppercase mb-2 tracking-wider">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                  Internal Verification Check (AI Logic)
+                </span>
+                <span className="text-yellow-100 text-sm leading-relaxed font-mono">
+                  {decodeResults.internalVerificationCheck || "No logic provided by AI."}
+                </span>
+              </div>
+
               {/* The VIN Row */}
-              <div className="flex justify-between items-center bg-gray-900/60 p-3 rounded-lg border border-gray-700/50">
+              <div className="flex justify-between items-center bg-gray-900/60 p-3 rounded-lg border border-gray-700/50 mt-4">
                 <span className="text-gray-400 text-xs font-bold uppercase tracking-wider">VIN Detected</span>
                 <span className="text-white font-mono font-bold tracking-wider">{decodeResults.decodedVIN || "Unknown"}</span>
               </div>
               
-              {/* The Primary Code Row (Eurocode/NAGS) */}
+              {/* The Primary Code Row */}
               <div className="flex justify-between items-center bg-blue-600/20 border border-blue-500/40 p-4 rounded-lg">
                 <span className="text-blue-300 text-xs font-bold uppercase tracking-wider">{referenceFormat}</span>
                 <span className="text-white font-mono text-2xl font-black tracking-widest">{decodeResults.primaryCode || "N/A"}</span>
               </div>
 
-              {/* The Descriptive Code Block (Always Present) */}
+              {/* The Descriptive Code Block */}
               <div className="bg-gray-800/80 border border-gray-600 p-4 rounded-lg shadow-inner">
                 <span className="block text-gray-400 text-xs font-bold uppercase mb-2 tracking-wider">Detailed Description</span>
                 <span className="text-gray-100 text-sm leading-relaxed font-medium">{decodeResults.descriptiveCode || "No description provided."}</span>
               </div>
 
-              {/* The Reasoning Footer */}
-              <p className="text-xs text-gray-400 mt-2 pt-3 border-t border-blue-500/20 italic leading-relaxed">
-                <span className="font-bold text-blue-300 not-italic">AI Logic: </span>
-                {decodeResults.reasoningSummary || "No reasoning provided."}
-              </p>
             </div>
           )}
         </div>
