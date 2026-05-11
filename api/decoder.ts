@@ -11,7 +11,7 @@ export default async function handler(req: any, res: any) {
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
     // Use the heavy-hitting Pro model for deep B2B logic extraction
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" }); 
+    const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" }); 
 
     const promptSequence: any[] = [];
 
