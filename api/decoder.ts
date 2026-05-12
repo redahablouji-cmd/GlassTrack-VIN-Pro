@@ -14,41 +14,39 @@ export default async function handler(req: any, res: any) {
 
     const promptSequence: any[] = [];
 
-    // === THE VISION EXTRACTOR PROMPT ===
-    promptSequence.push(`You are an elite B2B Auto Glass Vision AI. Your only job is to analyze a vehicle's VIN and physical photos to extract the vehicle details and hardware presence.
+    // === THE PRO-LEVEL DECODER PROMPT ===
+promptSequence.push(`You are an elite B2B Auto Glass Decoding AI. Your objective is to analyze a vehicle's VIN and physical photos to determine the exact 100% accurate replacement glass codes.
 
-    DAMAGE LOCATION: ${position.toUpperCase()}
-    GLASS STATUS: ${isShattered ? "MISSING/SHATTERED" : "INTACT"}
+PRIMARY FORMAT REQUESTED: ${referenceFormat}
+DAMAGE LOCATION: ${position.toUpperCase()}
+GLASS STATUS: ${isShattered ? "MISSING/SHATTERED" : "INTACT"}
 
-    1. VIN Decoding:
-    Look at the 17-digit VIN. Extract the Make and Model. You MUST extract the exact Year by looking at the 10th digit of the VIN (e.g., P = 2023).
+CRITICAL HARDWARE VERIFICATION RULES:
+You MUST verify hardware by cross-referencing the interior and exterior photos. Do not assume hardware exists based on interior plastic covers.
 
-    2. Hardware Verification (Cross-Reference Rules):
-    - Camera: Interior mirror bracket MUST be cross-referenced with the exterior top windshield photo. If the exterior black frit has NO clear geometric cutout for a lens, set has_camera to false, regardless of interior plastic covers.
-    - Rain Sensor: If the interior mirror bracket photo clearly shows a sensor housing/gel pad glued directly to the glass, set has_sensor to true (ignore exterior reflections).
-    - Heater: Look at the exterior bottom wipers. Are there orange wires in the black glass? Set has_heater to true/false.
+1. Camera Verification: Look at the interior mirror bracket. Then, CROSS-REFERENCE the exterior top windshield photo. If the exterior black dotted area (frit) has NO clear geometric cutout (trapezoid/triangle) for a lens, there is NO CAMERA, even if the interior plastic shroud is massive.
 
-    3. Garbage/Mismatch Protocol:
-    If the photos are not of the requested vehicle part, set "needsMorePhotos" to true and abort extraction.
+2. Rain/Light Sensor Verification: Look closely at the interior mirror bracket photo. Does the black plastic housing connect directly to a circular gel pad or sensor lens glued to the glass? 
+   - Rule: If you can clearly see the sensor housing attached to the glass from the inside photo, you MUST mark Sensor = True. Do NOT rely solely on the exterior photo for the rain sensor, as glare/reflections often hide it. 
 
-    === OUTPUT REQUIREMENT ===
-    Respond ONLY with a raw, valid JSON object. Do NOT wrap the JSON in markdown code blocks. Do NOT use line breaks inside JSON strings.
-    {
-      "needsMorePhotos": false,
-      "missingPhotoReason": "If true, explain what is missing. If false, leave null.",
-      "internalVerificationCheck": "Write your reasoning here. Example: 'VIN 10th digit is P (2023). Interior shows sensor housing. Exterior frit is solid black, no camera cutout. Therefore: Camera=False, Sensor=True.'",
-      "vehicle_data": {
-        "make": "string",
-        "model": "string",
-        "year": 2023
-      },
-      "hardware_detected": {
-        "has_camera": false,
-        "has_sensor": false,
-        "has_heater": false,
-        "has_acoustic": false
-      }
-    }`);
+3. Heater Verification: Look at the exterior bottom wipers. Are there orange/copper wires embedded in the black glass?
+
+4. Missing/Shattered Glass Protocol: If the GLASS STATUS is "MISSING/SHATTERED", ignore the frit/glass rules above. Instead, verify hardware by looking for exposed wire harnesses hanging from the headliner or dashboard.
+
+5. Code Generation (Pro-Level): Use the 17-digit VIN to accurately identify the Make, Model, and Year (look specifically at the 10th digit). Use your extensive knowledge of the European auto glass catalog to generate the correct 4-digit base code and the exact suffix grammar (e.g., A for Windshield, G for Green tint, C for Camera, M for Sensor-only, VZ for VIN/Encapsulated).
+
+=== OUTPUT REQUIREMENT ===
+Respond ONLY with a raw, valid JSON object. Do NOT wrap the JSON in markdown code blocks (no \`\`\`json). Do NOT use line breaks inside JSON strings. 
+You MUST write the "internalVerificationCheck" BEFORE generating the final codes so you can calculate the correct answer.
+
+{
+  "needsMorePhotos": false,
+  "missingPhotoReason": "If true, explain what is missing. If false, leave null.",
+  "decodedVIN": "The 17-digit VIN text",
+  "internalVerificationCheck": "Write your Chain of Thought here. Example: 'VIN 10th digit is P (2023). Interior shows sensor housing. Exterior frit is solid black, no camera cutout. Therefore: Camera=False, Sensor=True.'",
+  "primaryCode": "The final ${referenceFormat} code (e.g. 7653AGAMVZ)",
+  "descriptiveCode": "Full descriptive text (e.g. 'SEAT Ibiza - Acoustic Glass, Rain Sensor, NO Camera, NO Heater.')"
+}`);
     if (vinImage) {
       promptSequence.push("IMAGE 1: The VIN Barcode/Text.");
       promptSequence.push({ inlineData: { data: vinImage.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, ""), mimeType: "image/jpeg" } });
