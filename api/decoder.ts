@@ -10,7 +10,7 @@ export default async function handler(req: any, res: any) {
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview" }); 
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" }); 
 
     const promptSequence: any[] = [];
 
@@ -61,24 +61,38 @@ You MUST write the "internalVerificationCheck" BEFORE generating the final codes
       imageCounter++;
     }
 
-    // === SMART 503 RETRY LOOP ===
+    // === SMART FALLBACK & RETRY LOOP ===
     let rawText = "";
     const maxRetries = 3;
+    
+    // Start with your preferred genius model
+    let currentModelName = "gemini-3.1-pro-preview"; 
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const result = await model.generateContent(promptSequence);
+        // Initialize the model dynamically on each try
+        const dynamicModel = genAI.getGenerativeModel({ model: currentModelName });
+        
+        const result = await dynamicModel.generateContent(promptSequence);
         rawText = result.response.text();
         break; // Success! Break out of the loop.
+        
       } catch (error: any) {
         const is503 = error.status === 503 || (error.message && error.message.includes("503"));
         
         if (is503 && attempt < maxRetries) {
-          console.warn(`[503 High Demand] Decoder retrying... Attempt ${attempt} of ${maxRetries}`);
-          // Wait 2000 milliseconds (2 seconds) before knocking again
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          console.warn(`[503 High Demand] Decoder failed on ${currentModelName}. Attempt ${attempt} of ${maxRetries}`);
+          
+          // THE FALLBACK: If 3.1 Pro fails twice, switch to the hyper-stable 2.5 Pro for the final rescue attempt
+          if (attempt === 2) {
+             currentModelName = "gemini-2.5-pro";
+             console.warn("Falling back to gemini-2.5-pro to ensure client gets a response...");
+          }
+          
+          // Wait 3 seconds to let the server breathe
+          await new Promise(resolve => setTimeout(resolve, 3000));
         } else {
-          // If it is NOT a 503, or we are out of retries, throw the error immediately
+          // If it is NOT a 503, or we are completely out of retries, throw the error
           throw error;
         }
       }
