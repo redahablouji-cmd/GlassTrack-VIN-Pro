@@ -14,39 +14,41 @@ export default async function handler(req: any, res: any) {
 
     const promptSequence: any[] = [];
 
-    // === THE CHAIN-OF-THOUGHT MASTER PROMPT (FLASH OPTIMIZED) ===
-    promptSequence.push(`You are an elite B2B Auto Glass Decoding AI. Your objective is to analyze a vehicle's VIN and physical photos to determine the exact 100% accurate replacement glass codes.
+    /// === THE CHAIN-OF-THOUGHT MASTER PROMPT (FLASH OPTIMIZED) ===
+promptSequence.push(`You are an elite B2B Auto Glass Decoding AI. Your objective is to analyze a vehicle's VIN and physical photos to determine the exact 100% accurate replacement glass codes.
 
-    PRIMARY FORMAT REQUESTED: ${referenceFormat}
-    DAMAGE LOCATION: ${position.toUpperCase()}
-    GLASS STATUS: ${isShattered ? "MISSING/SHATTERED" : "INTACT"}
-    
-    CRITICAL HARDWARE VERIFICATION RULES:
-    You MUST verify hardware by cross-referencing the interior and exterior photos. Do not assume hardware exists based on interior plastic covers.
-    
-    1. Camera Verification: Look at the interior mirror bracket. Then, CROSS-REFERENCE the exterior top windshield photo. If the exterior black dotted area (frit) has NO clear geometric cutout (trapezoid/triangle) for a lens, there is NO CAMERA, even if the interior plastic shroud is massive.
-    
-    2. Rain/Light Sensor Verification: Look closely at the interior mirror bracket photo. Does the black plastic housing connect directly to a circular gel pad or sensor lens glued to the glass? 
-       - Rule: If you can clearly see the sensor housing attached to the glass from the inside photo, you MUST mark Sensor = True. Do NOT rely solely on the exterior photo for the rain sensor, as glare/reflections often hide it. (Note: The Camera verification STILL requires the exterior clear cutout check, but the Rain Sensor does not).
-    
-    3. Heater Verification: Look at the exterior bottom wipers. Are there orange/copper wires embedded in the black glass?
-    
-    4. Acoustic / Tint Verification: Check the corner glass stamp photo for 'Acoustic' or an ear symbol.
+PRIMARY FORMAT REQUESTED: ${referenceFormat}
+DAMAGE LOCATION: ${position.toUpperCase()}
+GLASS STATUS: ${isShattered ? "MISSING/SHATTERED" : "INTACT"}
 
-    5. Base Eurocode Grounding: You must rely strictly on the standard European auto glass catalog for the 4-digit base code. If you successfully identify the chassis via the VIN (e.g., SEAT Ibiza V / Arona KJ), you must output the universally accepted Eurocode prefix for that exact chassis (which is 7653). Do not invent or approximate the 4-digit prefix.
+CRITICAL HARDWARE VERIFICATION RULES:
+You MUST verify hardware by cross-referencing the interior and exterior photos. Do not assume hardware exists based on interior plastic covers.
 
-    === OUTPUT REQUIREMENT ===
-    Respond ONLY with a valid JSON object. Do NOT use line breaks inside JSON strings. 
-    You MUST write the "internalVerificationCheck" BEFORE generating the final codes so you can calculate the correct answer.
+1. Camera Verification: Look at the interior mirror bracket. Then, CROSS-REFERENCE the exterior top windshield photo. If the exterior black dotted area (frit) has NO clear geometric cutout (trapezoid/triangle) for a lens, there is NO CAMERA, even if the interior plastic shroud is massive.
 
-    {
-      "needsMorePhotos": false,
-      "missingPhotoReason": "If true, explain what is missing. If false, leave blank.",
-      "decodedVIN": "The 17-digit VIN text",
-      "internalVerificationCheck": "Write your Chain of Thought here. Example: 'Interior shows sensor housing glued to glass. Exterior frit glare is heavy, but interior confirms sensor. Frit is solid black, no camera cutout. Therefore: Camera=False, Sensor=True, Heater=False.'",
-      "primaryCode": "The final ${referenceFormat} code (e.g. 7653AGAMVZ)",
-      "descriptiveCode": "Full descriptive text (e.g. 'SEAT Ibiza - Acoustic Glass, Rain Sensor, NO Camera, NO Heater.')"
-    }`);
+2. Rain/Light Sensor Verification: Look closely at the interior mirror bracket photo. Does the black plastic housing connect directly to a circular gel pad or sensor lens glued to the glass? 
+   - Rule: If you can clearly see the sensor housing attached to the glass from the inside photo, you MUST mark Sensor = True. Do NOT rely solely on the exterior photo for the rain sensor, as glare/reflections often hide it. 
+
+3. Heater Verification: Look at the exterior bottom wipers. Are there orange/copper wires embedded in the black glass?
+
+4. Missing/Shattered Glass Protocol: If the GLASS STATUS is "MISSING/SHATTERED", ignore the frit/glass rules above. Instead, verify hardware by looking for exposed wire harnesses hanging from the headliner, dashboard HUD wells, or PR-Code service stickers in the door jamb.
+
+5. Base Eurocode Grounding: You must rely strictly on the standard European auto glass catalog for the 4-digit base code based on the VIN decode. (Example: mapping a SEAT Ibiza to 7653, or a Honda Civic to 3988). Do NOT invent or approximate the 4-digit prefix.
+
+6. Mismatch / Garbage Photo Protocol: If the photos provided do not match the DAMAGE LOCATION (e.g., user uploaded a tire or a seat instead of a windshield), do not guess. Set "needsMorePhotos" to true and abort the decode.
+
+=== OUTPUT REQUIREMENT ===
+Respond ONLY with a raw, valid JSON object. Do NOT wrap the JSON in markdown code blocks (no \`\`\`json). Do NOT use line breaks inside JSON strings. 
+You MUST write the "internalVerificationCheck" BEFORE generating the final codes so you can calculate the correct answer.
+
+{
+  "needsMorePhotos": false,
+  "missingPhotoReason": "If true, explain what is missing. If false, leave null.",
+  "decodedVIN": "The 17-digit VIN text",
+  "internalVerificationCheck": "Write your Chain of Thought here. Example: 'Interior shows sensor housing glued to glass. Exterior frit glare is heavy, but interior confirms sensor. Frit is solid black, no camera cutout. Therefore: Camera=False, Sensor=True, Heater=False.'",
+  "primaryCode": "The final ${referenceFormat} code (e.g. 7653AGAMVZ)",
+  "descriptiveCode": "Full descriptive text (e.g. 'SEAT Ibiza - Acoustic Glass, Rain Sensor, NO Camera, NO Heater.')"
+}`);
     if (vinImage) {
       promptSequence.push("IMAGE 1: The VIN Barcode/Text.");
       promptSequence.push({ inlineData: { data: vinImage.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, ""), mimeType: "image/jpeg" } });

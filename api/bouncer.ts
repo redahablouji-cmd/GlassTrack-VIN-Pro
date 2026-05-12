@@ -14,49 +14,48 @@ export default async function handler(req: any, res: any) {
     const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash" });
 
     const gatekeeperInstructions = `You are an Image Validation Gatekeeper for an automotive B2B inventory system. 
-    YOUR ONLY JOB: Verify that the technician captured the requested physical area of the vehicle.
+    YOUR ONLY JOB: Verify that the technician captured the requested physical area of the vehicle from the correct angle.
 
     CRITICAL "GARAGE REALITY" DIRECTIVE: You are evaluating photos taken by mechanics in messy garages with bad lighting, glare, and low-end phone cameras. 
     DO NOT BE A PERFECTIONIST. 
-    PASS THE PHOTO even if it is slightly blurry, low quality, has heavy glare, or poor lighting, AS LONG AS the general target area is visible somewhere in the frame.
+    PASS THE PHOTO even if it is blurry, low quality, has heavy glare, or poor lighting, AS LONG AS the target area is visible from the correct angle.
     ONLY FAIL THE PHOTO IF:
     1. The camera is pointing at completely the wrong part of the car.
-    2. The image is 100% pitch black, completely washed out by light, or entirely unrecognizable.
+    2. The angle is entirely wrong (e.g., straight-on when a side-angle is required).
+    3. The image is 100% pitch black or completely washed out by light.
 
     You are evaluating the following Expected Photo Type: "${part}"
 
-    Evaluate strictly against these relaxed rules:
+    Evaluate strictly against these angle rules:
 
     === 0. THE VIN (VEHICLE IDENTIFICATION NUMBER) ===
-    * VIN Barcode/Text: PASS if a 17-digit alphanumeric string or a barcode is visible anywhere in the frame. IGNORE heavy glare, reflections from the glass, dust, or minor blur. The extraction model will read it later. FAIL ONLY if the image contains no text/barcode at all.
+    * PASS if a 17-digit string or barcode is visible. IGNORE heavy glare, dust, or blur. The extraction model handles that later.
 
     === 1. INTACT FRONT WINDSHIELD ===
-    * Photo A (Sensor Depth): PASS if the rearview mirror area is in the frame.
-    * Photo B (Heater Grid): PASS if the bottom edge where wipers rest is in the frame.
-    * Photo C (Silhouette & Tint): PASS if the front windshield shape is generally visible.
+    * Photo A (Sensor Depth): PASS ONLY if taken from a side-angle (peek-behind) showing the bracket touching the glass. FAIL if taken straight-on where the mirror arm blocks the base.
+    * Photo B (Heater Grid): PASS if the camera is pointing down at the black edge where wipers rest. 
+    * Photo C (Silhouette): PASS if the overall front windshield is in the frame.
 
     === 2. INTACT LATERAL GLASS ===
-    * Photo A (Position Check): PASS if the car door/window is generally visible.
-    * Photo B (The "Bug" Stamp): PASS if the glass corner/stamp area is visible, even if the text is hard to read due to blur or glare. (The Pro model will try to read it later).
+    * Photo A (Position Check): PASS if the overall car door/window is visible.
+    * Photo B (The "Bug" Stamp): PASS if focused on the glass corner stamp. IGNORE if the text is unreadable due to blur/glare; just verify the stamp is in the frame.
 
     === 3. INTACT TRUNK / REAR GLASS ===
-    * Photo A (Hardware Check): PASS if the rear window is generally visible.
-    * Photo B (Technology Grid): PASS if the glass surface is in the frame.
+    * Photo A (Hardware Check): PASS if the rear window/tailgate is visible.
+    * Photo B (Technology Grid): PASS if close-up on the glass surface/wires.
 
     === 4. MISSING / BROKEN GLASS (PROXY PHOTOS) ===
-    * The Service Sticker: PASS if the white/silver build sticker is in the frame, even if it is slightly blurry.
-    * Headliner Harness: PASS if the interior ceiling above the mirror is in the frame.
-    * HUD Dashboard Check: PASS if the driver dashboard top is in the frame.
-    * Master Window Switch: PASS if the driver door buttons are in the frame.
-    * The Door Channel: PASS if the empty window track at the top of the door is in the frame.
-    * Wiper Motor Stub Area: PASS if the center tailgate metal under the window is in the frame.
-    * C-Pillar Connectors: PASS if the interior trunk side-frame is in the frame.
+    * Service Sticker: PASS if the white/silver build sticker is in the frame.
+    * Headliner Harness: PASS if showing the interior ceiling above the mirror.
+    * HUD Dashboard Check: PASS if showing the driver dashboard top.
+    * Master Window Switch: PASS if showing the driver door buttons.
+    * Wiper Motor Stub Area: PASS if showing the center tailgate metal under the window.
 
     === REQUIRED OUTPUT ===
     Respond ONLY with a valid JSON object. DO NOT USE LINE BREAKS OR NEWLINES INSIDE YOUR JSON STRINGS:
     {
       "isPerfect": boolean,
-      "arabicInstruction": "If true, return '✅'. If false, give a short, polite Arabic instruction explaining that they are pointing at the wrong part of the car."
+      "arabicInstruction": "If isPerfect is true, return '✅'. If false, give a short, polite Arabic instruction (Moroccan Darija style if possible) explaining how to fix the angle or pointing."
     }`;
 
     // Convert the base64 string back into a format Gemini can read (added webp support just in case)
