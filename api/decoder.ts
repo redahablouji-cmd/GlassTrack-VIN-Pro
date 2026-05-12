@@ -14,7 +14,7 @@ export default async function handler(req: any, res: any) {
 
     const promptSequence: any[] = [];
 
-    // === THE PRO-LEVEL DECODER PROMPT ===
+    // === THE PRO-LEVEL DECODER PROMPT (V2 - ACCESSORY FILTERED) ===
 promptSequence.push(`You are an elite B2B Auto Glass Decoding AI. Your objective is to analyze a vehicle's VIN and physical photos to determine the exact 100% accurate replacement glass codes.
 
 PRIMARY FORMAT REQUESTED: ${referenceFormat}
@@ -22,34 +22,36 @@ DAMAGE LOCATION: ${position.toUpperCase()}
 GLASS STATUS: ${isShattered ? "MISSING/SHATTERED" : "INTACT"}
 
 CRITICAL HARDWARE VERIFICATION RULES:
-You MUST verify hardware by cross-referencing the interior and exterior photos. Do not assume hardware exists based on interior plastic covers.
+You MUST verify hardware by cross-referencing the interior and exterior photos. Do not assume hardware exists based on interior plastic covers or stuck-on items.
 
 1. Camera Verification: Look at the interior mirror bracket. Then, CROSS-REFERENCE the exterior top windshield photo. If the exterior black dotted area (frit) has NO clear geometric cutout (trapezoid/triangle) for a lens, there is NO CAMERA, even if the interior plastic shroud is massive.
 
-2. Rain/Light Sensor Verification: Look closely at the interior mirror bracket photo. Does the black plastic housing connect directly to a circular gel pad or sensor lens glued to the glass? 
-   - Rule: If you can clearly see the sensor housing attached to the glass from the inside photo, you MUST mark Sensor = True. Do NOT rely solely on the exterior photo for the rain sensor, as glare/reflections often hide it. 
+2. Rain/Light Sensor Verification (Accessory Filtered): 
+   - Look for a circular or teardrop-shaped gel pad integrated into the mirror bracket housing.
+   - EXCLUSION RULE: Do NOT confuse automotive sensors with aftermarket accessories. Aftermarket toll tags (e.g., Jawaz, Salik, EZ-Pass, Dashcams) are typically rectangular white, beige, or black plastic boxes stuck to the glass surface. 
+   - If the device is a rectangular box stuck NEXT to the mirror with visible brand markings or barcodes, it is an accessory. Set Sensor = False.
 
 3. Heater Verification: Look at the exterior bottom wipers. Are there orange/copper wires embedded in the black glass?
 
 4. Missing/Shattered Glass Protocol: If the GLASS STATUS is "MISSING/SHATTERED", ignore the frit/glass rules above. Instead, verify hardware by looking for exposed wire harnesses hanging from the headliner or dashboard.
 
-5. Code Generation (Pro-Level): Use the 17-digit VIN to accurately identify the Make, Model, and Year (look specifically at the 10th digit). Use your extensive knowledge of the European auto glass catalog to generate the correct 4-digit base code and the exact suffix grammar (e.g., A for Windshield, G for Green tint, C for Camera, M for Sensor-only, VZ for VIN/Encapsulated).
+5. Code Generation (Pro-Level): Use the 17-digit VIN to identify the Make, Model, and 10th-digit Year. Generate the correct 4-digit base code and exact suffix grammar (e.g., A=Windshield, G=Green, C=Camera, M=Sensor, VZ=VIN Window/Encapsulated).
 
-6. Strict Internal Consistency (Anti-Hallucination): Your final "descriptiveCode" text MUST be 100% synchronized with your "primaryCode". 
-   - Model Match: The vehicle Make/Model in your text must perfectly match the 4-digit base code. (e.g., If you output 7653, the text MUST say SEAT Ibiza/Arona. Do not hallucinate 'Ateca').
-   - Hardware Match: If your generated code lacks an 'A' in the 7th position (e.g., AGMVZ), you are strictly forbidden from writing "Acoustic" in the description. If your code lacks a 'C', you must write "NO Camera". Your text is a direct, literal translation of your generated code.
+6. Strict Internal Consistency: Your final "descriptiveCode" MUST match your "primaryCode". 
+   - Model Match: 4-digit base code must match the Model name (e.g., 7653 = Ibiza/Arona).
+   - Hardware Match: If code is AGMVZ, description must say "Rain Sensor" and "NO Camera". Your text is a literal translation of your code.
 
 === OUTPUT REQUIREMENT ===
-Respond ONLY with a raw, valid JSON object. Do NOT wrap the JSON in markdown code blocks (no \`\`\`json). Do NOT use line breaks inside JSON strings. 
-You MUST write the "internalVerificationCheck" BEFORE generating the final codes so you can calculate the correct answer.
+Respond ONLY with a raw, valid JSON object. No markdown code blocks (no \`\`\`json). No line breaks in strings. 
+You MUST write the "internalVerificationCheck" BEFORE generating the final codes.
 
 {
   "needsMorePhotos": false,
   "missingPhotoReason": "If true, explain what is missing. If false, leave null.",
   "decodedVIN": "The 17-digit VIN text",
-  "internalVerificationCheck": "Write your Chain of Thought here. Example: 'VIN 10th digit is P (2023). Interior shows sensor housing. Exterior frit is solid black, no camera cutout. Therefore: Camera=False, Sensor=True.'",
-  "primaryCode": "The final ${referenceFormat} code (e.g. 7653AGAMVZ)",
-  "descriptiveCode": "Full descriptive text (e.g. 'SEAT Ibiza - Acoustic Glass, Rain Sensor, NO Camera, NO Heater.')"
+  "internalVerificationCheck": "Write your reasoning here. Example: 'Interior shows a rectangular Jawaz toll tag stuck to the glass, but the factory mirror mount is empty with no gel pad. Therefore: Sensor=False.'",
+  "primaryCode": "The final ${referenceFormat} code",
+  "descriptiveCode": "Full descriptive text"
 }`);
     if (vinImage) {
       promptSequence.push("IMAGE 1: The VIN Barcode/Text.");
