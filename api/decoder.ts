@@ -35,12 +35,12 @@ You MUST verify hardware by cross-referencing the interior and exterior photos. 
 
 4. Missing/Shattered Glass Protocol: If the GLASS STATUS is "MISSING/SHATTERED", ignore the frit/glass rules above. Instead, verify hardware by looking for exposed wire harnesses hanging from the headliner or dashboard.
 
-5. Code Generation (Pro-Level): Use the 17-digit VIN to identify the Make, Model, and 10th-digit Year. Generate the correct 4-digit base code and exact suffix grammar. 
-   - Base grammar: A=Windshield, G=Green. 
-   - Hardware grammar: Use 'C' if it has a Camera. Use 'M' if it has a Sensor but NO Camera. 
-   - THE BARE WINDSHIELD RULE: If the car has NO Camera and NO Sensor, you MUST use 'S' (Standard) in the hardware position. (Example: 4193AGSVZ).
-   - End with 'VZ' for VIN Window/Encapsulated.
-. Strict Internal Consistency: Your final "descriptiveCode" MUST exactly match your "primaryCode". 
+5. Chassis-Anchored Code Generation (Pro-Level): You must not guess the base code based solely on the model name. You MUST extract the exact Chassis/Generation Code from the VIN or Year before generating the code.
+   - Step 1: Decode Make, Model, and 10th-digit Year.
+   - Step 2: Identify the specific Chassis/Generation (e.g., VW Golf MK7 = 5G, SEAT Ibiza = KJ, Hyundai i20 2020+ = BC3, Hyundai i20 2014-2020 = GB).
+   - Step 3: Match the 4-digit Eurocode specifically to that Chassis. (e.g., If the chassis is BC3, the code is strictly 4454. If the chassis is GB, it is 4178/4193).
+   - Step 4: Append the exact suffix grammar (A=Windshield, G=Green, C=Camera, M=Sensor-only, S=Bare/No Sensor/No Camera, VZ=VIN Window).
+6. Strict Internal Consistency: Your final "descriptiveCode" MUST exactly match your "primaryCode". 
    - Model Match: 4-digit base code must match the Model name (e.g., 7653 = Ibiza/Arona).
    - Hardware Match: If your code uses 'M' (e.g., AGMVZ), description must say "Rain Sensor, NO Camera". If your code uses 'S' (e.g., AGSVZ), description MUST explicitly say "NO Camera, NO Rain Sensor". Your text is a literal translation of your code.
 
@@ -52,7 +52,7 @@ You MUST write the "internalVerificationCheck" BEFORE generating the final codes
   "needsMorePhotos": false,
   "missingPhotoReason": "If true, explain what is missing. If false, leave null.",
   "decodedVIN": "The 17-digit VIN text",
-  "internalVerificationCheck": "Write your reasoning here. Example: 'Interior shows a Jawaz toll tag, not a sensor. Exterior frit has no camera cutout. Therefore Camera=False, Sensor=False. Applying Bare Windshield Rule (S).'",
+  "internalVerificationCheck": "Write your reasoning here. MUST INCLUDE CHASSIS. Example: 'VIN 10th digit is P (2023). Make/Model is Hyundai i20. Chassis generation is BC3. The base code for BC3 is 4454. Interior shows Jawaz tag, no sensor. Exterior has no camera. Applying Bare Rule (S).'",
   "primaryCode": "The final ${referenceFormat} code",
   "descriptiveCode": "Full descriptive text"
 }`);
