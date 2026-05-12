@@ -35,11 +35,14 @@ You MUST verify hardware by cross-referencing the interior and exterior photos. 
 
 4. Missing/Shattered Glass Protocol: If the GLASS STATUS is "MISSING/SHATTERED", ignore the frit/glass rules above. Instead, verify hardware by looking for exposed wire harnesses hanging from the headliner or dashboard.
 
-5. Code Generation (Pro-Level): Use the 17-digit VIN to identify the Make, Model, and 10th-digit Year. Generate the correct 4-digit base code and exact suffix grammar (e.g., A=Windshield, G=Green, C=Camera, M=Sensor, VZ=VIN Window/Encapsulated).
-
-6. Strict Internal Consistency: Your final "descriptiveCode" MUST match your "primaryCode". 
+5. Code Generation (Pro-Level): Use the 17-digit VIN to identify the Make, Model, and 10th-digit Year. Generate the correct 4-digit base code and exact suffix grammar. 
+   - Base grammar: A=Windshield, G=Green. 
+   - Hardware grammar: Use 'C' if it has a Camera. Use 'M' if it has a Sensor but NO Camera. 
+   - THE BARE WINDSHIELD RULE: If the car has NO Camera and NO Sensor, you MUST use 'S' (Standard) in the hardware position. (Example: 4193AGSVZ).
+   - End with 'VZ' for VIN Window/Encapsulated.
+. Strict Internal Consistency: Your final "descriptiveCode" MUST exactly match your "primaryCode". 
    - Model Match: 4-digit base code must match the Model name (e.g., 7653 = Ibiza/Arona).
-   - Hardware Match: If code is AGMVZ, description must say "Rain Sensor" and "NO Camera". Your text is a literal translation of your code.
+   - Hardware Match: If your code uses 'M' (e.g., AGMVZ), description must say "Rain Sensor, NO Camera". If your code uses 'S' (e.g., AGSVZ), description MUST explicitly say "NO Camera, NO Rain Sensor". Your text is a literal translation of your code.
 
 === OUTPUT REQUIREMENT ===
 Respond ONLY with a raw, valid JSON object. No markdown code blocks (no \`\`\`json). No line breaks in strings. 
@@ -49,7 +52,7 @@ You MUST write the "internalVerificationCheck" BEFORE generating the final codes
   "needsMorePhotos": false,
   "missingPhotoReason": "If true, explain what is missing. If false, leave null.",
   "decodedVIN": "The 17-digit VIN text",
-  "internalVerificationCheck": "Write your reasoning here. Example: 'Interior shows a rectangular Jawaz toll tag stuck to the glass, but the factory mirror mount is empty with no gel pad. Therefore: Sensor=False.'",
+  "internalVerificationCheck": "Write your reasoning here. Example: 'Interior shows a Jawaz toll tag, not a sensor. Exterior frit has no camera cutout. Therefore Camera=False, Sensor=False. Applying Bare Windshield Rule (S).'",
   "primaryCode": "The final ${referenceFormat} code",
   "descriptiveCode": "Full descriptive text"
 }`);
