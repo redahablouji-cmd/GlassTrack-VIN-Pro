@@ -61,13 +61,32 @@ export default async function handler(req: any, res: any) {
     // Convert the base64 string back into a format Gemini can read (added webp support just in case)
     const base64Data = image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
 
-    // Send the image AND the strict rules to Gemini 2.5 Flash Lite
-    const result = await model.generateContent([
-      gatekeeperInstructions,
-      { inlineData: { data: base64Data, mimeType: "image/jpeg" } }
-    ]);
+    // === SMART 503 RETRY LOOP ===
+    let rawText = "";
+    const maxRetries = 3;
 
-    const rawText = result.response.text();
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        // Send the image AND the strict rules to Gemini
+        const result = await model.generateContent([
+          gatekeeperInstructions,
+          { inlineData: { data: base64Data, mimeType: "image/jpeg" } }
+        ]);
+        rawText = result.response.text();
+        break; // Success! Break out of the loop.
+      } catch (error: any) {
+        const is503 = error.status === 503 || (error.message && error.message.includes("503"));
+        
+        if (is503 && attempt < maxRetries) {
+          console.warn(`[503 High Demand] Bouncer retrying... Attempt ${attempt} of ${maxRetries}`);
+          // Wait 2000 milliseconds (2 seconds) before knocking again
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        } else {
+          // If it is NOT a 503, or we are out of retries, throw the error immediately
+          throw error;
+        }
+      }
+    }
     
     // === THE BULLETPROOF JSON CLEANER ===
     // 1. Extract ONLY the JSON block (ignores extra chatty text the AI might add)

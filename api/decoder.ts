@@ -61,8 +61,28 @@ You MUST write the "internalVerificationCheck" BEFORE generating the final codes
       imageCounter++;
     }
 
-    const result = await model.generateContent(promptSequence);
-    const rawText = result.response.text();
+    // === SMART 503 RETRY LOOP ===
+    let rawText = "";
+    const maxRetries = 3;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await model.generateContent(promptSequence);
+        rawText = result.response.text();
+        break; // Success! Break out of the loop.
+      } catch (error: any) {
+        const is503 = error.status === 503 || (error.message && error.message.includes("503"));
+        
+        if (is503 && attempt < maxRetries) {
+          console.warn(`[503 High Demand] Decoder retrying... Attempt ${attempt} of ${maxRetries}`);
+          // Wait 2000 milliseconds (2 seconds) before knocking again
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        } else {
+          // If it is NOT a 503, or we are out of retries, throw the error immediately
+          throw error;
+        }
+      }
+    }
 
     // === BULLETPROOF JSON CLEANER ===
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
