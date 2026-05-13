@@ -67,22 +67,33 @@ Respond ONLY with a raw, valid JSON object. Do NOT wrap the JSON in markdown cod
       imageCounter++;
     }
 
-        // === 2. FAST AI EXECUTION (NO MORE 5-MINUTE HANGS) ===
+            // === 2. AGGRESSIVE ENTERPRISE RETRY LOOP (NO COMPROMISE) ===
     let rawText = "";
-    
-    try {
-      // Pointing directly to Google's official, stable production model
-      // Replace the old model line with this:
-    const dynamicModel = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview" });
-      
-      // Execute the vision analysis
-      const result = await dynamicModel.generateContent(promptSequence);
-      rawText = result.response.text();
-      
-    } catch (error: any) {
-      console.error("Gemini API Error:", error);
-      // We fail fast so the mechanic isn't stuck waiting 5 minutes.
-      throw new Error("The AI Vision service is currently overloaded or the photos are too large. Please try again.");
+    let attempt = 1;
+    const maxRetries = 15; // We will hammer the door up to 15 times
+
+    while (attempt <= maxRetries) {
+      try {
+        // Exclusively demanding the Tier 1 model
+        const dynamicModel = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview" });
+        const result = await dynamicModel.generateContent(promptSequence);
+        rawText = result.response.text();
+        
+        break; // Success! We secured a node. Break the loop.
+        
+      } catch (error: any) {
+        const is503 = error.status === 503 || (error.message && error.message.includes("503"));
+        
+        if (is503 && attempt < maxRetries) {
+          console.warn(`[503 Overload] 3.1 Pro node busy. Attempt ${attempt}/${maxRetries}. Knocking again in 1.5s...`);
+          // Tactical pause: Wait 1.5 seconds to bypass DDoS filters, then strike again
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          attempt++;
+        } else {
+          // If it's a completely different error, or we fail 15 times in a row, throw it to the UI
+          throw new Error(`Google API Error: ${error.message || "Service heavily overloaded. Please try again."}`);
+        }
+      }
     }
 
     // === 3. PARSE THE AI VISION JSON ===
