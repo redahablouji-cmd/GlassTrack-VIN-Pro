@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { createClient } from '@supabase/supabase-js';
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -10,52 +11,43 @@ export default async function handler(req: any, res: any) {
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" }); 
-
     const promptSequence: any[] = [];
 
-    // === THE PRO-LEVEL DECODER PROMPT (V2 - ACCESSORY FILTERED) ===
-promptSequence.push(`You are an elite B2B Auto Glass Decoding AI. Your objective is to analyze a vehicle's VIN and physical photos to determine the exact 100% accurate replacement glass codes.
+    // === 1. THE NEW VISION EXTRACTOR PROMPT ===
+    promptSequence.push(`You are an elite B2B Auto Glass Vision AI. Your only job is to analyze a vehicle's VIN and physical photos to extract the vehicle details and hardware presence.
 
-PRIMARY FORMAT REQUESTED: ${referenceFormat}
 DAMAGE LOCATION: ${position.toUpperCase()}
 GLASS STATUS: ${isShattered ? "MISSING/SHATTERED" : "INTACT"}
 
-CRITICAL HARDWARE VERIFICATION RULES:
-You MUST verify hardware by cross-referencing the interior and exterior photos. Do not assume hardware exists based on interior plastic covers or stuck-on items.
+1. VIN Decoding:
+Look at the 17-digit VIN. Extract the Make and Model. You MUST extract the exact Year by looking at the 10th digit of the VIN.
 
-1. Camera Verification: Look at the interior mirror bracket. Then, CROSS-REFERENCE the exterior top windshield photo. If the exterior black dotted area (frit) has NO clear geometric cutout (trapezoid/triangle) for a lens, there is NO CAMERA, even if the interior plastic shroud is massive.
+2. Hardware Verification (Cross-Reference Rules):
+- Camera: Interior mirror bracket MUST be cross-referenced with the exterior top windshield photo. If the exterior black frit has NO clear geometric cutout for a lens, set has_camera to false, regardless of interior plastic covers.
+- Rain/Light Sensor: If the interior mirror bracket photo clearly shows a circular or teardrop-shaped gel pad glued directly to the glass, set has_sensor to true. IGNORE aftermarket accessories like Jawaz tags or dashcams.
 
-2. Rain/Light Sensor Verification (Accessory Filtered): 
-   - Look for a circular or teardrop-shaped gel pad integrated into the mirror bracket housing.
-   - EXCLUSION RULE: Do NOT confuse automotive sensors with aftermarket accessories. Aftermarket toll tags (e.g., Jawaz, Salik, EZ-Pass, Dashcams) are typically rectangular white, beige, or black plastic boxes stuck to the glass surface. 
-   - If the device is a rectangular box stuck NEXT to the mirror with visible brand markings or barcodes, it is an accessory. Set Sensor = False.
-
-3. Heater Verification: Look at the exterior bottom wipers. Are there orange/copper wires embedded in the black glass?
-
-4. Missing/Shattered Glass Protocol: If the GLASS STATUS is "MISSING/SHATTERED", ignore the frit/glass rules above. Instead, verify hardware by looking for exposed wire harnesses hanging from the headliner or dashboard.
-
-5. Chassis-Anchored Code Generation (Pro-Level): You must not guess the base code based solely on the model name. You MUST extract the exact Chassis/Generation Code from the VIN or Year before generating the code.
-   - Step 1: Decode Make, Model, and 10th-digit Year.
-   - Step 2: Identify the specific Chassis/Generation (e.g., VW Golf MK7 = 5G, SEAT Ibiza = KJ, Hyundai i20 2020+ = BC3, Hyundai i20 2014-2020 = GB).
-   - Step 3: Match the 4-digit Eurocode specifically to that Chassis. (e.g., If the chassis is BC3, the code is strictly 4454. If the chassis is GB, it is 4178/4193).
-   - Step 4: Append the exact suffix grammar (A=Windshield, G=Green, C=Camera, M=Sensor-only, S=Bare/No Sensor/No Camera, VZ=VIN Window).
-6. Strict Internal Consistency: Your final "descriptiveCode" MUST exactly match your "primaryCode". 
-   - Model Match: 4-digit base code must match the Model name (e.g., 7653 = Ibiza/Arona).
-   - Hardware Match: If your code uses 'M' (e.g., AGMVZ), description must say "Rain Sensor, NO Camera". If your code uses 'S' (e.g., AGSVZ), description MUST explicitly say "NO Camera, NO Rain Sensor". Your text is a literal translation of your code.
+3. Garbage/Mismatch Protocol:
+If the photos are not of the requested vehicle part, set "needsMorePhotos" to true and abort extraction.
 
 === OUTPUT REQUIREMENT ===
-Respond ONLY with a raw, valid JSON object. No markdown code blocks (no \`\`\`json). No line breaks in strings. 
-You MUST write the "internalVerificationCheck" BEFORE generating the final codes.
-
+Respond ONLY with a raw, valid JSON object. Do NOT wrap the JSON in markdown code blocks. Do NOT use line breaks inside JSON strings.
 {
   "needsMorePhotos": false,
   "missingPhotoReason": "If true, explain what is missing. If false, leave null.",
+  "internalVerificationCheck": "Write your reasoning here.",
   "decodedVIN": "The 17-digit VIN text",
-  "internalVerificationCheck": "Write your reasoning here. MUST INCLUDE CHASSIS. Example: 'VIN 10th digit is P (2023). Make/Model is Hyundai i20. Chassis generation is BC3. The base code for BC3 is 4454. Interior shows Jawaz tag, no sensor. Exterior has no camera. Applying Bare Rule (S).'",
-  "primaryCode": "The final ${referenceFormat} code",
-  "descriptiveCode": "Full descriptive text"
+  "vehicle_data": {
+    "make": "string",
+    "model": "string",
+    "year": 2023
+  },
+  "hardware_detected": {
+    "has_camera": false,
+    "has_sensor": false
+  }
 }`);
+
+    // Append Images
     if (vinImage) {
       promptSequence.push("IMAGE 1: The VIN Barcode/Text.");
       promptSequence.push({ inlineData: { data: vinImage.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, ""), mimeType: "image/jpeg" } });
@@ -68,49 +60,105 @@ You MUST write the "internalVerificationCheck" BEFORE generating the final codes
       imageCounter++;
     }
 
-    // === SMART FALLBACK & RETRY LOOP ===
+    // === 2. SMART FALLBACK & RETRY LOOP ===
     let rawText = "";
     const maxRetries = 3;
-    
-    // Start with your preferred genius model
     let currentModelName = "gemini-3.1-pro-preview"; 
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        // Initialize the model dynamically on each try
         const dynamicModel = genAI.getGenerativeModel({ model: currentModelName });
-        
         const result = await dynamicModel.generateContent(promptSequence);
         rawText = result.response.text();
-        break; // Success! Break out of the loop.
-        
+        break; 
       } catch (error: any) {
         const is503 = error.status === 503 || (error.message && error.message.includes("503"));
-        
         if (is503 && attempt < maxRetries) {
           console.warn(`[503 High Demand] Decoder failed on ${currentModelName}. Attempt ${attempt} of ${maxRetries}`);
-          
-          // THE FALLBACK: If 3.1 Pro fails twice, switch to the hyper-stable 2.5 Pro for the final rescue attempt
           if (attempt === 2) {
              currentModelName = "gemini-2.5-pro";
              console.warn("Falling back to gemini-2.5-pro to ensure client gets a response...");
           }
-          
-          // Wait 3 seconds to let the server breathe
           await new Promise(resolve => setTimeout(resolve, 3000));
         } else {
-          // If it is NOT a 503, or we are completely out of retries, throw the error
           throw error;
         }
       }
     }
 
-    // === BULLETPROOF JSON CLEANER ===
+    // === 3. PARSE THE AI VISION JSON ===
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error("AI did not return valid JSON structure.");
     
     const cleanJson = jsonMatch[0].replace(/[\n\r\t]/g, ' ');
-    return res.status(200).json(JSON.parse(cleanJson));
+    const aiData = JSON.parse(cleanJson);
+
+    // Stop here if AI needs better photos
+    if (aiData.needsMorePhotos) {
+        return res.status(200).json(aiData);
+    }
+
+    // === 4. CONNECT TO SUPABASE ===
+    // Using your VITE_ keys to connect to your central platform database
+    const supabaseUrl = process.env.VITE_SUPABASE_URL;
+    const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error("Missing Supabase configuration keys.");
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // === 5. BUILD THE SMART DATABASE QUERY ===
+    const { make, model } = aiData.vehicle_data;
+    const { has_sensor, has_camera } = aiData.hardware_detected;
+
+    // Search for Make and Model in the description
+    let query = supabase.from('glass_catalog')
+      .select('eurocode, nags, description')
+      .ilike('description', `%${make}%`)
+      .ilike('description', `%${model}%`);
+
+    // Hardware Filters (Matches your new Supabase columns)
+    if (has_sensor) {
+       query = query.not('rain_sensor', 'is', null);
+    } else {
+       query = query.is('rain_sensor', null);
+    }
+
+    if (has_camera) {
+       query = query.not('camera', 'is', null);
+    } else {
+       query = query.is('camera', null);
+    }
+
+    // Execute the query
+    const { data: catalogMatch, error } = await query;
+
+    if (error) {
+       console.error("Supabase Error:", error);
+       throw new Error("Failed to query glass catalog.");
+    }
+
+    // === 6. INJECT RESULTS FOR THE UI ===
+    if (catalogMatch && catalogMatch.length > 0) {
+       // We take the best match from the XYG catalog
+       const bestMatch = catalogMatch[0];
+       
+       // Output Eurocode or NAGS based on UI dropdown
+       aiData.primaryCode = referenceFormat === "NAGS" ? bestMatch.nags : bestMatch.eurocode;
+       aiData.descriptiveCode = bestMatch.description;
+       
+       if (!aiData.primaryCode) aiData.primaryCode = "CODE BLANK IN CATALOG";
+
+    } else {
+       // Vehicle features were extracted, but XYG catalog doesn't have that exact combo
+       aiData.primaryCode = "NO EXACT MATCH";
+       aiData.descriptiveCode = `Detected: ${make} ${model}. Sensor: ${has_sensor}, Camera: ${has_camera}. Please check catalog manually.`;
+    }
+
+    // Send the final bulletproof payload to the React UI
+    return res.status(200).json(aiData);
 
   } catch (error: any) {
     console.error("Pro Decoder Error:", error);
