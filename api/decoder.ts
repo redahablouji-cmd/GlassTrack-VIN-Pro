@@ -21,15 +21,16 @@ export default async function handler(req: any, res: any) {
     const genAI = new GoogleGenerativeAI(apiKey);
     const promptSequence: any[] = [];
 
-    // === 1. THE NEW PROMPT (UPPERCASE MAKE/MODEL, NO GUESSING YEARS) ===
+        // === 1. THE NEW PROMPT (WITH JAWAZ TOLL TAG EXCLUSION) ===
     promptSequence.push(`You are an elite B2B Auto Glass Vision AI.
 DAMAGE LOCATION: ${position.toUpperCase()}
 GLASS STATUS: ${isShattered ? "MISSING/SHATTERED" : "INTACT"}
 
 1. VIN Decoding: Extract Make and Model. Format BOTH as pure UPPERCASE (e.g., "HYUNDAI", "I20"). Do NOT extract the year.
-2. Hardware Verification:
-   - Rain Sensor: Look for the gel pad on the glass. Set true/false.
-   - Camera: Look for the trapezoid lens hole in the frit. Set true/false.
+2. Hardware Verification (CRITICAL EXCLUSION RULES):
+   - Rain Sensor: Look ONLY for a circular or teardrop gel pad integrated directly into the mirror bracket housing. Set true/false.
+   - Camera: Look ONLY for a clear geometric (trapezoid/triangle) lens cutout in the black frit band. Set true/false.
+   - THE JAWAZ / TOLL TAG RULE: Look closely at the interior mirror photo. If you see a white, beige, or black rectangular plastic box stuck to the glass NEXT TO or NEAR the mirror, this is an aftermarket toll tag (like JAWAZ) or a dashcam. It is NOT a factory sensor. It is NOT a camera. Do not let it trick you. If you spot one, explicitly state "Jawaz tag detected, ignoring" in your internalVerificationCheck, and strictly set sensor and camera to false unless real factory hardware is also present.
 
 Respond ONLY with raw JSON:
 {
