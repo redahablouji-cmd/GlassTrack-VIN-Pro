@@ -75,7 +75,7 @@ Respond ONLY with a raw, valid JSON object. Do NOT wrap the JSON in markdown cod
     while (attempt <= maxRetries) {
       try {
         // Exclusively demanding the Tier 1 model
-        const dynamicModel = genAI.getGenerativeModel({ model: "gemini-3.1-pro-preview" });
+        const dynamicModel = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
         const result = await dynamicModel.generateContent(promptSequence);
         rawText = result.response.text();
         
