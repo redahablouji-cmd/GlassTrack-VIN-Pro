@@ -72,7 +72,8 @@ Respond ONLY with a raw, valid JSON object. Do NOT wrap the JSON in markdown cod
     
     try {
       // Pointing directly to Google's official, stable production model
-      const dynamicModel = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+      // Replace the old model line with this:
+const dynamicModel = genAI.getGenerativeModel({ model: "gemini-3.1-pro" });
       
       // Execute the vision analysis
       const result = await dynamicModel.generateContent(promptSequence);
