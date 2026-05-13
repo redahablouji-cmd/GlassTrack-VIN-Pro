@@ -49,6 +49,9 @@ export default function HomeScreen() {
   const [proofImages, setProofImages] = useState<Record<string, string>>({});
   
   const [previewImages, setPreviewImages] = useState<Record<string, string>>({});
+  // NEW: Toggle between Dashboard and Decoder
+  const [currentView, setCurrentView] = useState<'dashboard' | 'decoder'>('dashboard');
+
   const [validatingId, setValidatingId] = useState<string | null>(null);
   const [imageErrors, setImageErrors] = useState<Record<string, string>>({});
   const [isDecoding, setIsDecoding] = useState(false);
@@ -194,180 +197,235 @@ export default function HomeScreen() {
       <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
     </div>
   );
+// DUMMY DATA: We will connect this to Supabase later
+  const historyLog = [
+    { id: 1, date: 'Today, 10:45 AM', car: 'SEAT Ibiza V', code: '7653AGAMVZ', desc: 'Acoustic Glass, Rain Sensor, NO Camera' },
+    { id: 2, date: 'Yesterday', car: 'Hyundai Santa Fe', code: '4148AGN', desc: 'Solar Tinted, Base Model' }
+  ];
+    return (
+    <div className="min-h-screen bg-gray-50 text-gray-900 font-sans p-4 pb-28">
+      
+      {/* HEADER: Clean, Professional, Minimal */}
+      <header className="flex justify-between items-center mb-8 pt-4">
+        <h1 className="text-2xl font-black tracking-tighter text-gray-900">
+          LOWFX<span className="text-blue-600">GLASS</span>
+        </h1>
+        {currentView === 'decoder' && (
+          <button 
+            onClick={() => setCurrentView('dashboard')} 
+            className="text-sm font-bold text-gray-500 hover:text-gray-900 bg-gray-200 px-4 py-2 rounded-full transition-all"
+          >
+            Cancel
+          </button>
+        )}
+      </header>
 
-  return (
-    <div className="min-h-screen bg-gray-900 text-white p-4 pb-24 font-sans">
-      <div className="mb-8 mt-4">
-        <h1 className="text-2xl font-bold tracking-wide">LOWFX <span className="text-blue-500">GLASS</span></h1>
-      </div>
+      {/* ========================================= */}
+      {/* VIEW 1: THE DASHBOARD & HISTORY           */}
+      {/* ========================================= */}
+      {currentView === 'dashboard' ? (
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          
+          {/* THE BIG "NEW DECODE" BUTTON */}
+          <button 
+            onClick={() => setCurrentView('decoder')}
+            className="w-full bg-blue-600 text-white rounded-3xl p-6 shadow-xl shadow-blue-600/20 flex flex-col items-center justify-center gap-4 mb-10 transform active:scale-95 transition-all"
+          >
+            <div className="bg-white/20 p-4 rounded-full">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+            </div>
+            <div>
+              <h2 className="text-xl font-bold">Decode New Vehicle</h2>
+              <p className="text-blue-100 text-sm font-medium mt-1">Scan VIN and Capture Hardware</p>
+            </div>
+          </button>
 
-      <div className="bg-gray-800 rounded-xl p-4 mb-6 shadow-lg border border-gray-700">
-        <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Vehicle Configuration</h2>
-        
-        <select 
-          className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white mb-4 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-          value={position}
-          onChange={(e) => { setPosition(e.target.value); setProofImages({}); setPreviewImages({}); setImageErrors({}); }}
-        >
-          <option value="Front Windshield">Front Windshield</option>
-          <option value="Lateral Glass">Lateral Glass (Doors)</option>
-          <option value="Rear Glass">Rear Glass (Trunk/Hatch)</option>
-        </select>
-
-        {/* NEW DROPDOWN: Target Reference Format */}
-        {/* NEW DROPDOWN: Target Reference Format */}
-        <select 
-          className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white mb-4 focus:border-blue-500 outline-none"
-          value={referenceFormat}
-          onChange={(e) => setReferenceFormat(e.target.value)}
-        >
-          <option value="Eurocode">Extract Standard Eurocode</option>
-          <option value="NAGS">Extract NAGS Code</option>
-        </select>
-
-        <div className="flex gap-2">
-          <button onClick={() => { setIsShattered(false); setProofImages({}); setPreviewImages({}); setImageErrors({}); }} className={`flex-1 py-3 rounded-lg text-sm font-bold transition-colors ${!isShattered ? 'bg-blue-600 text-white' : 'bg-gray-900 text-gray-400 border border-gray-700'}`}>Glass Intact</button>
-          <button onClick={() => { setIsShattered(true); setProofImages({}); setPreviewImages({}); setImageErrors({}); }} className={`flex-1 py-3 rounded-lg text-sm font-bold transition-colors ${isShattered ? 'bg-red-600 text-white' : 'bg-gray-900 text-gray-400 border border-gray-700'}`}>Missing / Shattered</button>
+          {/* HISTORY SECTION (Mockup for now) */}
+          <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4 ml-2">Recent Decodes</h3>
+          <div className="space-y-3">
+            {/* We will map real Supabase data here later */}
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-2">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-bold text-gray-400">Today, 10:45 AM</span>
+                <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded-md">SEAT Ibiza V</span>
+              </div>
+              <div className="text-2xl font-black font-mono text-gray-900 tracking-wider">7653AGAMVZ</div>
+              <div className="text-sm text-gray-500 font-medium">Acoustic Glass, Rain Sensor, NO Camera</div>
+            </div>
+          </div>
         </div>
-      </div>
+      ) : (
 
-      {/* VIN SECTION */}
-      <div className="mb-6">
-        <div className={`w-full bg-gray-800 border ${imageErrors['vin'] ? 'border-red-500' : 'border-gray-700'} rounded-xl p-5 shadow-lg relative`}>
-          {vinImage && <SuccessBadge />}
-          <div className="flex items-start gap-4 mb-4">
-            <div className="w-16 h-16 shrink-0 rounded-lg bg-gray-900 border border-gray-700 flex items-center justify-center overflow-hidden">
+      /* ========================================= */
+      /* VIEW 2: THE NEW FUTURISTIC SCANNER        */
+      /* ========================================= */
+        <div className="animate-in fade-in slide-in-from-right-4 duration-500">
+          
+          {/* VEHICLE CONFIGURATION CARD */}
+          <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 mb-6">
+            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Configuration</h2>
+            
+            <select 
+              className="w-full bg-gray-50 border border-gray-200 rounded-2xl p-4 text-gray-900 font-semibold mb-3 outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+              value={position}
+              onChange={(e) => { setPosition(e.target.value); setProofImages({}); setPreviewImages({}); setImageErrors({}); }}
+            >
+              <option value="Front Windshield">Front Windshield</option>
+              <option value="Lateral Glass">Lateral Glass (Doors)</option>
+              <option value="Rear Glass">Rear Glass (Trunk/Hatch)</option>
+            </select>
+
+            <select 
+              className="w-full bg-gray-50 border border-gray-200 rounded-2xl p-4 text-gray-900 font-semibold mb-4 outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+              value={referenceFormat}
+              onChange={(e) => setReferenceFormat(e.target.value)}
+            >
+              <option value="Eurocode">Extract Standard Eurocode</option>
+              <option value="NAGS">Extract NAGS Code</option>
+            </select>
+
+            <div className="flex gap-2">
+              <button onClick={() => { setIsShattered(false); setProofImages({}); setPreviewImages({}); setImageErrors({}); }} className={`flex-1 py-4 rounded-2xl text-sm font-bold transition-all ${!isShattered ? 'bg-gray-900 text-white shadow-lg' : 'bg-gray-50 text-gray-500 border border-gray-200'}`}>Glass Intact</button>
+              <button onClick={() => { setIsShattered(true); setProofImages({}); setPreviewImages({}); setImageErrors({}); }} className={`flex-1 py-4 rounded-2xl text-sm font-bold transition-all ${isShattered ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'bg-gray-50 text-gray-500 border border-gray-200'}`}>Shattered / Missing</button>
+            </div>
+          </div>
+
+          {/* CAPTURE VIN CARD */}
+          <div className={`bg-white p-5 rounded-3xl shadow-sm border mb-6 ${imageErrors['vin'] ? 'border-red-500' : 'border-gray-100'} relative`}>
+            {vinImage && <div className="absolute -top-3 -right-3 bg-green-500 text-white p-2 rounded-full shadow-lg border-4 border-gray-50"><svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg></div>}
+            
+            <div className="flex justify-between items-start gap-4 mb-4">
+              <div className="flex-1">
+                <h3 className="font-bold text-gray-900 text-lg">1. Capture VIN</h3>
+                <p className="text-xs text-gray-500 font-medium mt-1">{vinImage ? 'VIN Approved' : 'Required for precise matching'}</p>
+                {validatingId === 'vin' && <p className="text-yellow-600 text-xs font-bold mt-2 animate-pulse dir-rtl">جاري الفحص...</p>}
+                {imageErrors['vin'] && <p className="mt-2 text-red-600 text-xs font-bold dir-rtl break-words">{imageErrors['vin']}</p>}
+              </div>
+              <div className="w-16 h-16 shrink-0 rounded-2xl bg-gray-50 border border-gray-200 flex items-center justify-center overflow-hidden">
                 {validatingId === 'vin' ? (
-                     <div className="w-6 h-6 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+                     <div className="w-6 h-6 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" />
                   ) : previewImages['vin'] ? (
                     <img src={previewImages['vin']} alt="Preview" className="w-full h-full object-cover" />
                   ) : (
-                    <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-16v16M4 4v16m4-16v16m8-16v16" /></svg>
+                    <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-16v16M4 4v16m4-16v16m8-16v16" /></svg>
                   )}
+              </div>
             </div>
-            <div className="flex-1">
-              <h3 className="font-bold text-white">Capture VIN</h3>
-              <p className="text-gray-400 text-xs mt-1">{vinImage ? 'VIN Approved' : 'Required for precise matching'}</p>
-              {validatingId === 'vin' && <p className="text-yellow-400 text-xs font-bold mt-2 animate-pulse dir-rtl">جاري الفحص...</p>}
-              {imageErrors['vin'] && <p className="mt-2 text-red-400 text-xs font-bold dir-rtl break-words">{imageErrors['vin']}</p>}
+
+            <div className="flex gap-3">
+              <label className="flex-1 bg-blue-50 hover:bg-blue-100 text-blue-700 py-4 rounded-2xl flex flex-col items-center justify-center gap-2 transition-all cursor-pointer">
+                <input type="file" accept="image/jpeg, image/png, image/webp" capture="environment" className="hidden" onChange={(e) => handleNativeCapture(e, { id: 'vin' }, true)} disabled={validatingId === 'vin'} />
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                <span className="text-sm font-bold">Camera</span>
+              </label>
+              <label className="flex-1 bg-gray-50 hover:bg-gray-100 text-gray-700 py-4 rounded-2xl flex flex-col items-center justify-center gap-2 transition-all cursor-pointer border border-gray-200">
+                <input type="file" accept="image/jpeg, image/png, image/webp" className="hidden" onChange={(e) => handleNativeCapture(e, { id: 'vin' }, true)} disabled={validatingId === 'vin'} />
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                <span className="text-sm font-bold">Gallery</span>
+              </label>
             </div>
           </div>
+
+          {/* DIAGNOSTIC PHOTOS */}
+          <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 ml-2">Diagnostic Hardware Photos</h2>
           
-          {/* DUAL BUTTONS FOR VIN */}
-          <div className="flex gap-2">
-            <label className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-lg text-center cursor-pointer text-sm font-bold transition-colors shadow-md">
-              <input type="file" accept="image/jpeg, image/png, image/webp" capture="environment" className="hidden" onChange={(e) => handleNativeCapture(e, { id: 'vin' }, true)} disabled={validatingId === 'vin'} />
-              📷 Camera
-            </label>
-            <label className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-3 rounded-lg text-center cursor-pointer text-sm font-bold transition-colors shadow-md">
-              <input type="file" accept="image/jpeg, image/png, image/webp" className="hidden" onChange={(e) => handleNativeCapture(e, { id: 'vin' }, true)} disabled={validatingId === 'vin'} />
-              🖼️ Gallery
-            </label>
-          </div>
-        </div>
-      </div>
-
-      <h2 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Required Diagnostic Photos</h2>
-      <div className="space-y-4">
-        {currentChecklist.map((item: any) => (
-          <div key={item.id} className="relative">
-            <div className={`w-full bg-gray-800 border ${imageErrors[item.id] ? 'border-red-500' : 'border-gray-700'} rounded-xl p-4 shadow-lg relative`}>
-              {proofImages[item.id] && <SuccessBadge />}
-              
-              <div className="flex justify-between items-start gap-4 mb-4">
-                <div className="flex-1">
-                  <h3 className={`font-bold text-sm ${proofImages[item.id] ? 'text-green-400' : imageErrors[item.id] ? 'text-red-400' : 'text-blue-400'}`}>{item.title}</h3>
-                  <p className="text-gray-400 text-xs mt-2 leading-relaxed">{item.desc}</p>
-                  {validatingId === item.id && <p className="text-yellow-400 text-xs font-bold mt-2 animate-pulse dir-rtl">جاري الفحص...</p>}
-                  {imageErrors[item.id] && <p className="mt-2 text-red-400 text-xs font-bold dir-rtl break-words">{imageErrors[item.id]}</p>}
+          <div className="space-y-4">
+            {currentChecklist.map((item: any, index: number) => (
+              <div key={item.id} className={`bg-white p-5 rounded-3xl shadow-sm border ${imageErrors[item.id] ? 'border-red-500' : 'border-gray-100'} relative`}>
+                {proofImages[item.id] && <div className="absolute -top-3 -right-3 bg-green-500 text-white p-2 rounded-full shadow-lg border-4 border-gray-50"><svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg></div>}
+                
+                <div className="flex justify-between items-start gap-4 mb-4">
+                  <div className="flex-1">
+                    <h3 className="font-bold text-gray-900 text-lg">{index + 2}. {item.title}</h3>
+                    <p className="text-xs text-gray-500 font-medium mt-2 leading-relaxed">{item.desc}</p>
+                    {validatingId === item.id && <p className="text-yellow-600 text-xs font-bold mt-2 animate-pulse dir-rtl">جاري الفحص...</p>}
+                    {imageErrors[item.id] && <p className="mt-2 text-red-600 text-xs font-bold dir-rtl break-words">{imageErrors[item.id]}</p>}
+                  </div>
+                  <div className="w-16 h-16 shrink-0 rounded-2xl bg-gray-50 border border-gray-200 flex items-center justify-center overflow-hidden">
+                    {validatingId === item.id ? (
+                       <div className="w-6 h-6 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin" />
+                    ) : previewImages[item.id] ? (
+                      <img src={previewImages[item.id]} alt="Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    )}
+                  </div>
                 </div>
-                <div className="w-16 h-16 shrink-0 rounded-lg bg-gray-900 border border-gray-700 flex items-center justify-center overflow-hidden">
-                  {validatingId === item.id ? (
-                     <div className="w-6 h-6 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
-                  ) : previewImages[item.id] ? (
-                    <img src={previewImages[item.id]} alt="Preview" className="w-full h-full object-cover" />
-                  ) : (
-                    <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                  )}
+
+                <div className="flex gap-3">
+                  <label className="flex-1 bg-blue-50 hover:bg-blue-100 text-blue-700 py-4 rounded-2xl flex flex-col items-center justify-center gap-2 transition-all cursor-pointer">
+                    <input type="file" accept="image/jpeg, image/png, image/webp" capture="environment" className="hidden" onChange={(e) => handleNativeCapture(e, item)} disabled={validatingId === item.id} />
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    <span className="text-sm font-bold">Camera</span>
+                  </label>
+                  <label className="flex-1 bg-gray-50 hover:bg-gray-100 text-gray-700 py-4 rounded-2xl flex flex-col items-center justify-center gap-2 transition-all cursor-pointer border border-gray-200">
+                    <input type="file" accept="image/jpeg, image/png, image/webp" className="hidden" onChange={(e) => handleNativeCapture(e, item)} disabled={validatingId === item.id} />
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    <span className="text-sm font-bold">Gallery</span>
+                  </label>
                 </div>
               </div>
-
-              {/* DUAL BUTTONS FOR EVERY PHOTO */}
-              <div className="flex gap-2">
-                <label className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-lg text-center cursor-pointer text-xs font-bold transition-colors shadow-md">
-                  <input type="file" accept="image/jpeg, image/png, image/webp" capture="environment" className="hidden" onChange={(e) => handleNativeCapture(e, item)} disabled={validatingId === item.id} />
-                  📷 Camera
-                </label>
-                <label className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-center cursor-pointer text-xs font-bold transition-colors shadow-md">
-                  <input type="file" accept="image/jpeg, image/png, image/webp" className="hidden" onChange={(e) => handleNativeCapture(e, item)} disabled={validatingId === item.id} />
-                  🖼️ Gallery
-                </label>
-              </div>
-
-            </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      {/* NEW: Upgraded Results Card with Descriptive Code */}
-      {/* NEW: Results Card with Chain-of-Thought Debugging */}
-      {decodeResults && (
-        <div className={`mt-8 mb-24 border rounded-xl p-5 backdrop-blur-sm shadow-2xl ${decodeResults.needsMorePhotos ? 'bg-red-900/30 border-red-500/50' : 'bg-blue-900/20 border-blue-500/50'}`}>
-          <h3 className={`font-bold text-lg mb-4 pb-3 border-b ${decodeResults.needsMorePhotos ? 'text-red-400 border-red-500/30' : 'text-blue-400 border-blue-500/30'}`}>
-            {decodeResults.needsMorePhotos ? '⚠️ AI Requires More Information' : '✅ AI Decode Complete'}
-          </h3>
-          
-          {decodeResults.needsMorePhotos ? (
-            <p className="text-sm text-white font-medium leading-relaxed">{decodeResults.missingPhotoReason}</p>
-          ) : (
-            <div className="space-y-4">
+          {/* LIGHT THEME RESULTS CARD */}
+          {decodeResults && (
+            <div className={`mt-8 border rounded-3xl p-6 shadow-sm ${decodeResults.needsMorePhotos ? 'bg-red-50 border-red-200' : 'bg-white border-blue-100'}`}>
+              <h3 className={`font-black text-lg mb-4 pb-3 border-b ${decodeResults.needsMorePhotos ? 'text-red-600 border-red-100' : 'text-blue-600 border-blue-50'}`}>
+                {decodeResults.needsMorePhotos ? '⚠️ AI Requires More Information' : '✅ Vision Extraction Complete'}
+              </h3>
               
-              {/* THE AI LOGIC DEBUGGER (Chain of Thought) */}
-              <div className="bg-yellow-900/20 border border-yellow-500/40 p-4 rounded-lg shadow-inner">
-                <span className="flex items-center gap-2 text-yellow-400 text-xs font-bold uppercase mb-2 tracking-wider">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
-                  Internal Verification Check (AI Logic)
-                </span>
-                <span className="text-yellow-100 text-sm leading-relaxed font-mono">
-                  {decodeResults.internalVerificationCheck || "No logic provided by AI."}
-                </span>
-              </div>
+              {decodeResults.needsMorePhotos ? (
+                <p className="text-sm text-gray-700 font-medium leading-relaxed">{decodeResults.missingPhotoReason}</p>
+              ) : (
+                <div className="space-y-4">
+                  {/* AI LOGIC DEBUGGER */}
+                  <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-2xl">
+                    <span className="flex items-center gap-2 text-yellow-800 text-xs font-bold uppercase mb-2 tracking-wider">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      Internal Vision Logic
+                    </span>
+                    <span className="text-yellow-900 text-sm leading-relaxed font-mono">
+                      {decodeResults.internalVerificationCheck || "No logic provided by AI."}
+                    </span>
+                  </div>
 
-              {/* The VIN Row */}
-              <div className="flex justify-between items-center bg-gray-900/60 p-3 rounded-lg border border-gray-700/50 mt-4">
-                <span className="text-gray-400 text-xs font-bold uppercase tracking-wider">VIN Detected</span>
-                <span className="text-white font-mono font-bold tracking-wider">{decodeResults.decodedVIN || "Unknown"}</span>
-              </div>
-              
-              {/* The Primary Code Row */}
-              <div className="flex justify-between items-center bg-blue-600/20 border border-blue-500/40 p-4 rounded-lg">
-                <span className="text-blue-300 text-xs font-bold uppercase tracking-wider">{referenceFormat}</span>
-                <span className="text-white font-mono text-2xl font-black tracking-widest">{decodeResults.primaryCode || "N/A"}</span>
-              </div>
-
-              {/* The Descriptive Code Block */}
-              <div className="bg-gray-800/80 border border-gray-600 p-4 rounded-lg shadow-inner">
-                <span className="block text-gray-400 text-xs font-bold uppercase mb-2 tracking-wider">Detailed Description</span>
-                <span className="text-gray-100 text-sm leading-relaxed font-medium">{decodeResults.descriptiveCode || "No description provided."}</span>
-              </div>
-
+                  <div className="bg-gray-50 border border-gray-100 p-4 rounded-2xl flex justify-between items-center">
+                    <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Vehicle</span>
+                    <span className="text-gray-900 font-bold">{decodeResults.vehicle_data?.make} {decodeResults.vehicle_data?.model} ({decodeResults.vehicle_data?.year})</span>
+                  </div>
+                  
+                  {/* Note: primaryCode and descriptiveCode will be N/A until Supabase is linked */}
+                  <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl flex justify-between items-center">
+                    <span className="text-blue-700 text-xs font-bold uppercase tracking-wider">{referenceFormat}</span>
+                    <span className="text-blue-900 font-mono text-2xl font-black tracking-widest">{decodeResults.primaryCode || "N/A"}</span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
+
+          {/* THE MASTER INITIATE BUTTON (Floating at bottom) */}
+          <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-gray-50 via-gray-50 to-transparent pt-10 z-50">
+            <button 
+              onClick={handleFinalUpload}
+              disabled={isDecoding || !vinImage || Object.keys(proofImages).length < currentChecklist.length}
+              className={`w-full py-5 rounded-3xl font-black text-lg shadow-xl transition-all flex justify-center items-center gap-2 ${
+                isDecoding ? 'bg-gray-300 text-gray-500 cursor-wait' :
+                (!vinImage || Object.keys(proofImages).length < currentChecklist.length) ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none' : 'bg-gray-900 text-white active:scale-95 hover:bg-black shadow-gray-900/30'
+              }`}
+            >
+              {isDecoding ? (
+                <>
+                  <svg className="animate-spin h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  جاري التحليل...
+                </>
+              ) : 'INITIATE VIN DECODE'}
+            </button>
+          </div>
+
         </div>
       )}
-
-      <div className="fixed bottom-0 left-0 w-full p-4 bg-gradient-to-t from-gray-900 via-gray-900 to-transparent z-50">
-        <button 
-          onClick={handleFinalUpload}
-          disabled={isDecoding || !vinImage || Object.keys(proofImages).length < currentChecklist.length}
-          className={`w-full py-4 rounded-xl font-bold text-lg shadow-xl transition-all ${
-            isDecoding ? 'bg-gray-700 text-gray-400 cursor-wait' :
-            (!vinImage || Object.keys(proofImages).length < currentChecklist.length) ? 'bg-gray-800 text-gray-600 cursor-not-allowed' : 'bg-blue-600 text-white active:scale-95'
-          }`}
-        >
-          {isDecoding ? 'جاري التحليل...' : 'INITIATE VIN DECODE'}
-        </button>
-      </div>
     </div>
   );
 }
