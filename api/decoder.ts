@@ -60,30 +60,21 @@ Respond ONLY with a raw, valid JSON object. Do NOT wrap the JSON in markdown cod
       imageCounter++;
     }
 
-    // === 2. SMART FALLBACK & RETRY LOOP ===
+        // === 2. FAST AI EXECUTION (NO MORE 5-MINUTE HANGS) ===
     let rawText = "";
-    const maxRetries = 3;
-    let currentModelName = "gemini-3.1-pro-preview"; 
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        const dynamicModel = genAI.getGenerativeModel({ model: currentModelName });
-        const result = await dynamicModel.generateContent(promptSequence);
-        rawText = result.response.text();
-        break; 
-      } catch (error: any) {
-        const is503 = error.status === 503 || (error.message && error.message.includes("503"));
-        if (is503 && attempt < maxRetries) {
-          console.warn(`[503 High Demand] Decoder failed on ${currentModelName}. Attempt ${attempt} of ${maxRetries}`);
-          if (attempt === 2) {
-             currentModelName = "gemini-2.5-pro";
-             console.warn("Falling back to gemini-2.5-pro to ensure client gets a response...");
-          }
-          await new Promise(resolve => setTimeout(resolve, 3000));
-        } else {
-          throw error;
-        }
-      }
+    
+    try {
+      // Pointing directly to Google's official, stable production model
+      const dynamicModel = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+      
+      // Execute the vision analysis
+      const result = await dynamicModel.generateContent(promptSequence);
+      rawText = result.response.text();
+      
+    } catch (error: any) {
+      console.error("Gemini API Error:", error);
+      // We fail fast so the mechanic isn't stuck waiting 5 minutes.
+      throw new Error("The AI Vision service is currently overloaded or the photos are too large. Please try again.");
     }
 
     // === 3. PARSE THE AI VISION JSON ===
