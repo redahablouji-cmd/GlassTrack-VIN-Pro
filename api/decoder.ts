@@ -151,8 +151,9 @@ Respond ONLY with a raw, valid JSON object. Do NOT wrap the JSON in markdown cod
     // Send the final bulletproof payload to the React UI
     return res.status(200).json(aiData);
 
-  } catch (error: any) {
-    console.error("Pro Decoder Error:", error);
-    return res.status(500).json({ error: error.message || error.toString() });
-  }
+      } catch (error: any) {
+      console.error("Gemini API Error:", error);
+      // Let's pass the EXACT Google error straight to your phone screen
+      throw new Error(`Google API Error: ${error.message || "Unknown AI failure"}`);
+    }
 }
