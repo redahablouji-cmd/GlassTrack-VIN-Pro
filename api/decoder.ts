@@ -119,41 +119,40 @@ Respond ONLY with a raw, valid JSON object. Do NOT wrap the JSON in markdown cod
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // === 5. BUILD THE SMART DATABASE QUERY ===
+        // === 5. BUILD THE SMART DATABASE QUERY ===
     const { make, model } = aiData.vehicle_data;
     const { has_sensor, has_camera } = aiData.hardware_detected;
 
-    // Search for Make and Model in the description
-    let query = supabase.from('glass_catalog')
-      .select('eurocode, nags, description')
+    // Step 5A: Fetch ALL windshields for this Make & Model
+    const { data: catalogMatch, error } = await supabase.from('glass_catalog')
+      .select('eurocode, nags, description, rain_sensor, camera')
       .ilike('description', `%${make}%`)
       .ilike('description', `%${model}%`);
-
-    // Hardware Filters (Matches your new Supabase columns)
-    if (has_sensor) {
-       query = query.not('rain_sensor', 'is', null);
-    } else {
-       query = query.is('rain_sensor', null);
-    }
-
-    if (has_camera) {
-       query = query.not('camera', 'is', null);
-    } else {
-       query = query.is('camera', null);
-    }
-
-    // Execute the query
-    const { data: catalogMatch, error } = await query;
 
     if (error) {
        console.error("Supabase Error:", error);
        throw new Error("Failed to query glass catalog.");
     }
 
-    // === 6. INJECT RESULTS FOR THE UI ===
+    // === 6. BULLETPROOF HARDWARE FILTERING ===
+    // This fixes the Excel "empty string" bug by filtering in JavaScript
+    let exactMatches = [];
+    
     if (catalogMatch && catalogMatch.length > 0) {
-       // We take the best match from the XYG catalog
-       const bestMatch = catalogMatch[0];
+        exactMatches = catalogMatch.filter((row: any) => {
+            // Check if the cell actually has text (like "RS" or "Z") and isn't just a dash "-"
+            const rowHasSensor = row.rain_sensor && row.rain_sensor.trim() !== "" && row.rain_sensor !== "-";
+            const rowHasCamera = row.camera && row.camera.trim() !== "" && row.camera !== "-";
+
+            // Keep only the rows that perfectly match the AI's physical hardware check
+            return rowHasSensor === has_sensor && rowHasCamera === has_camera;
+        });
+    }
+
+    // === 7. INJECT RESULTS FOR THE UI ===
+    if (exactMatches.length > 0) {
+       // Take the absolute best match from our filtered list
+       const bestMatch = exactMatches[0]; 
        
        // Output Eurocode or NAGS based on UI dropdown
        aiData.primaryCode = referenceFormat === "NAGS" ? bestMatch.nags : bestMatch.eurocode;
@@ -162,7 +161,6 @@ Respond ONLY with a raw, valid JSON object. Do NOT wrap the JSON in markdown cod
        if (!aiData.primaryCode) aiData.primaryCode = "CODE BLANK IN CATALOG";
 
     } else {
-       // Vehicle features were extracted, but XYG catalog doesn't have that exact combo
        aiData.primaryCode = "NO EXACT MATCH";
        aiData.descriptiveCode = `Detected: ${make} ${model}. Sensor: ${has_sensor}, Camera: ${has_camera}. Please check catalog manually.`;
     }
@@ -170,9 +168,8 @@ Respond ONLY with a raw, valid JSON object. Do NOT wrap the JSON in markdown cod
     // Send the final bulletproof payload to the React UI
     return res.status(200).json(aiData);
 
-      } catch (error: any) {
-      console.error("Gemini API Error:", error);
-      // Let's pass the EXACT Google error straight to your phone screen
-      throw new Error(`Google API Error: ${error.message || "Unknown AI failure"}`);
-    }
+  } catch (error: any) {
+    console.error("Gemini API Error:", error);
+    return res.status(500).json({ error: `System Error: ${error.message || "Unknown AI failure"}` });
+  }
 }
