@@ -12,7 +12,7 @@ export default async function handler(req: any, res: any) {
     const genAI = new GoogleGenerativeAI(apiKey);
     // Locked in to your remaining 2.5 Flash Lite quota
     // Replace the old model line with this:
-const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
 
     const gatekeeperInstructions = `You are an Image Validation Gatekeeper for an automotive B2B inventory system. 
     YOUR ONLY JOB: Verify that the technician captured the requested physical area of the vehicle from the correct angle.
