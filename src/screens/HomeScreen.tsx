@@ -5,7 +5,7 @@ const FORENSIC_UI_MAP: any = {
   "Front Windshield": {
     intact: [
       { id: "photo1", title: "Photo A: The Sensor Depth (Interior Side-View)", desc: "45° angle from passenger seat. Focus on the rearview mirror physical mounting base (even if it's just bare plastic)." },
-      { id: "photo2", title: "Photo B: The Heater Grid (Exterior Cowl-View)", desc: "45° angle looking down at the black glass edge where wipers rest. Keep the area in focus." },
+      { id: "photo2", title: "Photo B: The Frit Window (Exterior Top Center)", desc: "45° angle looking down at the black glass edge where wipers rest. Keep the area in focus." },
       { id: "photo3", title: "Photo C: The Silhouette & Tint (Full Exterior)", desc: "90° straight-on exterior. Ensure the entire shape of the front windshield fits clearly in the frame." }
     ],
     shattered: [

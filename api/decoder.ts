@@ -21,16 +21,19 @@ export default async function handler(req: any, res: any) {
     const genAI = new GoogleGenerativeAI(apiKey);
     const promptSequence: any[] = [];
 
-        // === 1. THE NEW PROMPT (WITH JAWAZ TOLL TAG EXCLUSION) ===
+            // === 1. THE NEW PROMPT (THE EXTERIOR FRIT CHEAT CODE) ===
     promptSequence.push(`You are an elite B2B Auto Glass Vision AI.
 DAMAGE LOCATION: ${position.toUpperCase()}
 GLASS STATUS: ${isShattered ? "MISSING/SHATTERED" : "INTACT"}
 
 1. VIN Decoding: Extract Make and Model. Format BOTH as pure UPPERCASE (e.g., "HYUNDAI", "I20"). Do NOT extract the year.
-2. Hardware Verification (CRITICAL EXCLUSION RULES):
-   - Rain Sensor: Look ONLY for a circular or teardrop gel pad integrated directly into the mirror bracket housing. Set true/false.
-   - Camera: Look ONLY for a clear geometric (trapezoid/triangle) lens cutout in the black frit band. Set true/false.
-   - THE JAWAZ / TOLL TAG RULE: Look closely at the interior mirror photo. If you see a white, beige, or black rectangular plastic box stuck to the glass NEXT TO or NEAR the mirror, this is an aftermarket toll tag (like JAWAZ) or a dashcam. It is NOT a factory sensor. It is NOT a camera. Do not let it trick you. If you spot one, explicitly state "Jawaz tag detected, ignoring" in your internalVerificationCheck, and strictly set sensor and camera to false unless real factory hardware is also present.
+2. Hardware Verification (THE FRIT WINDOW RULE):
+   - You MUST cross-reference the interior mirror photo with the EXTERIOR top-center photo.
+   - THE JAWAZ / DASHCAM TRAP: Factory sensors and cameras ALWAYS have a precise, transparent, factory-cut "window" (circle, teardrop, or trapezoid) left bare in the black exterior frit band. 
+   - Aftermarket toll tags (like Jawaz) and dashcams are glued to the inside of the glass. They do NOT have a factory-cut window in the exterior black frit.
+   - Rain Sensor: Is there a distinct circular/teardrop clear window in the exterior black frit? If yes, true.
+   - Camera: Is there a distinct trapezoid/triangle clear window in the exterior black frit? If yes, true.
+   - If you see a bulky plastic box on the interior, but the exterior black frit is solid with no clear cutouts, explicitly state "Aftermarket tag detected, no exterior frit window" in your reasoning, and set sensor/camera to FALSE.
 
 Respond ONLY with raw JSON:
 {
