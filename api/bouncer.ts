@@ -34,8 +34,7 @@ const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
 
     === 1. INTACT FRONT WINDSHIELD ===
     * Photo A (Sensor Depth): PASS ONLY if taken from a side-angle (peek-behind) showing the bracket touching the glass. FAIL if taken straight-on where the mirror arm blocks the base.
-    * Photo B (Heater Grid): PASS if the camera is pointing down at the black edge where wipers rest, and if if the camera is pointing at the top-center exterior of the windshield, clearly showing the black painted band (frit) and the top edge of the glass where it meets the roof. 
-    * Photo C (Silhouette): PASS if the overall front windshield is in the frame.
+    * Photo B (Heater Grid & Top Frit): PASS as long as you can generally see both the bottom black edge (wipers) and the top black painted band (roofline). It does not need to be a perfect angle, just ensure both the top and bottom areas are somewhere in the frame.    * Photo C (Silhouette): PASS if the overall front windshield is in the frame.
 
     === 2. INTACT LATERAL GLASS ===
     * Photo A (Position Check): PASS if the overall car door/window is visible.
