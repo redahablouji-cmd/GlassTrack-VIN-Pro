@@ -93,6 +93,28 @@ Respond ONLY with raw JSON:
 
     if (aiData.needsMorePhotos) return res.status(200).json(aiData);
 
+    // === NEW: THE VIN YEAR CHEAT CODE ===
+    let exactYear = 0;
+    if (aiData.decodedVIN && aiData.decodedVIN.length >= 10) {
+        // Grab the 10th character
+        const tenthDigit = aiData.decodedVIN.charAt(9).toUpperCase();
+        
+        // The Modern VIN Dictionary (2000 - 2030)
+        // Note: VINs never use I, O, Q, U, or Z.
+        const vinYearMap: Record<string, number> = {
+            'Y': 2000, '1': 2001, '2': 2002, '3': 2003, '4': 2004, '5': 2005, '6': 2006, '7': 2007, '8': 2008, '9': 2009,
+            'A': 2010, 'B': 2011, 'C': 2012, 'D': 2013, 'E': 2014, 'F': 2015, 'G': 2016, 'H': 2017, 'J': 2018, 'K': 2019,
+            'L': 2020, 'M': 2021, 'N': 2022, 'P': 2023, 'R': 2024, 'S': 2025, 'T': 2026, 'V': 2027, 'W': 2028, 'X': 2029
+        };
+        
+        exactYear = vinYearMap[tenthDigit] || 0;
+        
+        // Inject the decoded year into the UI so the mechanic sees it!
+        if (exactYear > 0) {
+            aiData.vehicle_data.year = exactYear.toString();
+        }
+    }
+
     // === 4. CONNECT SUPABASE ===
     const supabaseUrl = process.env.VITE_SUPABASE_URL;
     const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
@@ -147,26 +169,46 @@ Respond ONLY with raw JSON:
     let exactMatches = [];
     if (catalogMatch && catalogMatch.length > 0) {
         exactMatches = catalogMatch.filter((row: any) => {
-            // Safely grab columns no matter what they are named (handles both old Excel names and new SQL names)
+            // Safely grab columns no matter what they are named
             const xygCode = (row.xyg_code || row["XYG CODE"] || "").toUpperCase();
             const rsCol = (row.rain_sensor || row.RS || row["SENSOR PLACE"] || "").toString();
             const camCol = (row.camera || row["CAMERA PLACE"] || "").toString();
+            const desc = (row.description || row.DESCRIPTION || "").toUpperCase();
 
             // RULE 1: Front Windshield Only. If it doesn't say "LFW", throw it out!
             if (!xygCode.includes("LFW")) return false;
 
-            // RULE 2: Exact Hardware Matching (Checks if the cell is truly empty or just has a dash)
+            // RULE 2: Exact Hardware Matching
             const rowHasSensor = rsCol.trim() !== "" && rsCol.trim() !== "-";
             const rowHasCamera = camCol.trim() !== "" && camCol.trim() !== "-";
 
-            return rowHasSensor === has_sensor && rowHasCamera === has_camera;
+            if (rowHasSensor !== has_sensor || rowHasCamera !== has_camera) return false;
+
+            // RULE 3: THE VIN YEAR FILTER (The Mastermind Logic)
+            if (exactYear > 0) {
+                // Look for generation ranges in the description (e.g., "2017-23" or "2020-")
+                const yearMatch = desc.match(/20(\d{2})-(?:20)?(\d{2})?/);
+                
+                if (yearMatch) {
+                    const startYear = parseInt("20" + yearMatch[1]);
+                    // If it says "2020-" with no end date, assume it goes up to next year
+                    const endYear = yearMatch[2] ? parseInt("20" + yearMatch[2]) : new Date().getFullYear() + 1;
+                    
+                    // If the decoded VIN year is outside this generation, delete this row!
+                    if (exactYear < startYear || exactYear > endYear) {
+                        return false; 
+                    }
+                }
+            }
+
+            return true; // It survived all filters!
         });
 
-        // RULE 3: THE TIE-BREAKER (Solves the Year problem)
-        // If the DB finds both a 2015 i20 and a 2020 i20 with no sensors, it automatically sorts them so the newest generation is #1.
+        // RULE 4: THE TIE-BREAKER (Fallback)
+        // If the VIN year wasn't found, or if there's still a tie, sort newest generation first.
         exactMatches.sort((a, b) => {
-            const descA = (a.description || "");
-            const descB = (b.description || "");
+            const descA = (a.description || a.DESCRIPTION || "");
+            const descB = (b.description || b.DESCRIPTION || "");
             return descB.localeCompare(descA); // Puts "2020-" before "2015-20"
         });
     }
