@@ -99,17 +99,49 @@ Respond ONLY with raw JSON:
     if (!supabaseUrl || !supabaseKey) throw new Error("Missing Supabase keys.");
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // === 5. FETCH DATA (THE SELECT * TRICK) ===
-    const { make, model } = aiData.vehicle_data;
+    // === 5. FETCH DATA (SMART ALIAS FALLBACK) ===
+    let { make, model } = aiData.vehicle_data;
     const { has_sensor, has_camera } = aiData.hardware_detected;
 
-    // We use select('*') to grab all 13 columns, bypassing any naming errors in Supabase!
-    const { data: catalogMatch, error } = await supabase.from('glass_catalog')
-      .select('*')
-      .ilike('description', `%${make.trim()}%`)
-      .ilike('description', `%${model.trim()}%`);
+    // Clean up the text so there are no accidental spaces
+    make = make.trim().toUpperCase();
+    model = model.trim().toUpperCase();
 
-    if (error) throw new Error("Failed to query catalog.");
+    // First attempt: Search with the exact Make and Model the AI found
+    let { data: catalogMatch, error } = await supabase.from('glass_catalog')
+      .select('*')
+      .ilike('description', `%${make}%`)
+      .ilike('description', `%${model}%`);
+
+    if (error) throw new Error("Failed to query catalog on first attempt.");
+
+    // If the first try found NOTHING, check if we need to use an abbreviation
+    if (!catalogMatch || catalogMatch.length === 0) {
+        
+        // THE B2B BRAND DICTIONARY
+        const brandDictionary: Record<string, string> = {
+            "VOLKSWAGEN": "VW",
+            "MERCEDES-BENZ": "BENZ",
+            "MERCEDES BENZ": "BENZ",
+            "CHEVROLET": "CHEVY",
+            "LAND ROVER": "ROVER"
+        };
+
+        const abbreviation = brandDictionary[make];
+        
+        // If an abbreviation exists for this brand, run a second search!
+        if (abbreviation) {
+            const { data: fallbackMatch, error: fallbackError } = await supabase.from('glass_catalog')
+              .select('*')
+              .ilike('description', `%${abbreviation}%`)
+              .ilike('description', `%${model}%`);
+              
+            if (fallbackError) throw new Error("Failed to query catalog on fallback attempt.");
+            
+            // Overwrite our empty results with the newly found abbreviation results
+            catalogMatch = fallbackMatch; 
+        }
+    }
 
     // === 6. THE BULLETPROOF JAVASCRIPT FILTER ===
     let exactMatches = [];
