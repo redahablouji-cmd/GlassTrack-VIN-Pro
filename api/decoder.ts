@@ -171,20 +171,54 @@ Respond ONLY with raw JSON:
         });
     }
 
-    // === 7. UI INJECTION ===
+    // === 7. THE BULLETPROOF UI INJECTION ===
     if (exactMatches.length > 0) {
        const bestMatch = exactMatches[0];
        
-       // Output exactly what is in the DB
-       aiData.primaryCode = referenceFormat === "NAGS" ? (bestMatch.nags || bestMatch.NAGS) : (bestMatch.eurocode || bestMatch.EUROCODE);
-       aiData.descriptiveCode = bestMatch.description || bestMatch.DESCRIPTION;
+       // Bulletproof Excel Column Finder: Ignores invisible spaces in your Supabase headers!
+       const dbDescKey = Object.keys(bestMatch).find(k => k.trim().toUpperCase() === 'DESCRIPTION');
+       const dbEuroKey = Object.keys(bestMatch).find(k => k.trim().toUpperCase() === 'EUROCODE');
+       const dbNagsKey = Object.keys(bestMatch).find(k => k.trim().toUpperCase() === 'NAGS');
+
+       const finalDescription = dbDescKey ? bestMatch[dbDescKey] : "UNKNOWN DESCRIPTION";
        
-       if (!aiData.primaryCode) aiData.primaryCode = "CODE BLANK IN CATALOG";
-    } else {
+       let finalCode;
+       if (referenceFormat === "NAGS") {
+           finalCode = dbNagsKey ? bestMatch[dbNagsKey] : null;
+       } else {
+           finalCode = dbEuroKey ? bestMatch[dbEuroKey] : null;
+       }
+       
+       aiData.primaryCode = finalCode || "CODE BLANK IN CATALOG";
+       aiData.descriptiveCode = finalDescription;
+       
+       // THE HACK: Overwrite the AI's generic Make/Model with the exact Database Description
+       // This forces your UI to display "VW TIGUAN SUV 2017-23" instead of "VOLKSWAGEN TIGUAN"
+       aiData.vehicle_data.make = finalDescription;
+       aiData.vehicle_data.model = ""; 
+       aiData.vehicle_data.year = "";
+
+    } else if (catalogMatch && catalogMatch.length > 0) {
+       // Fallback: It found the car brand/model in the catalog, but the camera/sensor didn't match perfectly.
+       const baseMatch = catalogMatch[0];
+       const dbDescKey = Object.keys(baseMatch).find(k => k.trim().toUpperCase() === 'DESCRIPTION');
+       const baseDescription = dbDescKey ? baseMatch[dbDescKey] : "UNKNOWN DESCRIPTION";
+
        aiData.primaryCode = "NO EXACT MATCH";
-       aiData.descriptiveCode = `Detected: ${make} ${model}. Sensor: ${has_sensor}, Camera: ${has_camera}. All 13 columns checked. No LFW part found in DB.`;
+       aiData.descriptiveCode = "Hardware mismatch. Check manual catalog.";
+
+       // Still push the official catalog description to the UI so the mechanic has a starting point!
+       aiData.vehicle_data.make = baseDescription;
+       aiData.vehicle_data.model = "";
+       aiData.vehicle_data.year = "";
+
+    } else {
+       // The car is completely missing from the database
+       aiData.primaryCode = "NO EXACT MATCH";
+       aiData.descriptiveCode = `Not found in catalog.`;
     }
 
+    // Send the final manipulated payload to the React UI
     return res.status(200).json(aiData);
 
   } catch (error: any) {
