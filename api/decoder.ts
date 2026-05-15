@@ -213,17 +213,42 @@ Respond ONLY with raw JSON:
         });
     }
 
-    // === 7. THE BULLETPROOF UI INJECTION ===
+    // === 7. THE HUMAN-IN-THE-LOOP UI INJECTION ===
     if (exactMatches.length > 0) {
        const bestMatch = exactMatches[0];
-       
-       // Bulletproof Excel Column Finder: Ignores invisible spaces in your Supabase headers!
        const dbDescKey = Object.keys(bestMatch).find(k => k.trim().toUpperCase() === 'DESCRIPTION');
+       const finalDescription = dbDescKey ? bestMatch[dbDescKey] : "UNKNOWN DESCRIPTION";
+       
+       // THE CROSSOVER DILEMMA DETECTOR 
+       // If the system is holding 2 or more windshields after all the math and AI filters...
+       if (exactMatches.length > 1) {
+           const secondMatch = exactMatches[1];
+           const secondDescKey = Object.keys(secondMatch).find(k => k.trim().toUpperCase() === 'DESCRIPTION');
+           const altDescription = secondDescKey ? secondMatch[secondDescKey] : "";
+           
+           // THE FIX: Cut the string at the "/" to ignore tiny tint/trim differences
+           const baseDescFinal = finalDescription.split('/')[0].trim();
+           const baseDescAlt = altDescription.split('/')[0].trim();
+           
+           // Check if the BASE generations are actually different (e.g., 2017-23 vs 2024-)
+           if (baseDescFinal !== baseDescAlt) {
+               
+               // TRIGGER THE DILEMMA QUESTION TO THE UI
+               aiData.primaryCode = "ACTION REQUIRED";
+               aiData.descriptiveCode = `DILEMMA: Crossover year detected. Please verify body shape. Is this [${baseDescAlt}] or [${baseDescFinal}]?`;
+               
+               // Clear the generic vehicle data so the mechanic focuses on the question
+               aiData.vehicle_data.make = "Multiple Generations Found";
+               aiData.vehicle_data.model = "";
+               
+               return res.status(200).json(aiData); // Stop here and send to UI
+           }
+       }
+
+       // --- IF NO DILEMMA, PROCEED NORMALLY ---
        const dbEuroKey = Object.keys(bestMatch).find(k => k.trim().toUpperCase() === 'EUROCODE');
        const dbNagsKey = Object.keys(bestMatch).find(k => k.trim().toUpperCase() === 'NAGS');
 
-       const finalDescription = dbDescKey ? bestMatch[dbDescKey] : "UNKNOWN DESCRIPTION";
-       
        let finalCode;
        if (referenceFormat === "NAGS") {
            finalCode = dbNagsKey ? bestMatch[dbNagsKey] : null;
@@ -234,37 +259,26 @@ Respond ONLY with raw JSON:
        aiData.primaryCode = finalCode || "CODE BLANK IN CATALOG";
        aiData.descriptiveCode = finalDescription;
        
-       // THE HACK: Overwrite the AI's generic Make/Model with the exact Database Description
-       // This forces your UI to display "VW TIGUAN SUV 2017-23" instead of "VOLKSWAGEN TIGUAN"
+       // Overwrite the AI's generic Make/Model
        aiData.vehicle_data.make = finalDescription;
        aiData.vehicle_data.model = ""; 
-       aiData.vehicle_data.year = "";
 
     } else if (catalogMatch && catalogMatch.length > 0) {
-       // Fallback: It found the car brand/model in the catalog, but the camera/sensor didn't match perfectly.
+       // Hardware mismatch fallback
        const baseMatch = catalogMatch[0];
        const dbDescKey = Object.keys(baseMatch).find(k => k.trim().toUpperCase() === 'DESCRIPTION');
        const baseDescription = dbDescKey ? baseMatch[dbDescKey] : "UNKNOWN DESCRIPTION";
 
        aiData.primaryCode = "NO EXACT MATCH";
        aiData.descriptiveCode = "Hardware mismatch. Check manual catalog.";
-
-       // Still push the official catalog description to the UI so the mechanic has a starting point!
        aiData.vehicle_data.make = baseDescription;
        aiData.vehicle_data.model = "";
-       aiData.vehicle_data.year = "";
 
     } else {
-       // The car is completely missing from the database
+       // Completely missing from DB
        aiData.primaryCode = "NO EXACT MATCH";
        aiData.descriptiveCode = `Not found in catalog.`;
     }
 
-    // Send the final manipulated payload to the React UI
+    // Send the final payload to the React UI
     return res.status(200).json(aiData);
-
-  } catch (error: any) {
-    console.error("Pro Decoder Error:", error);
-    return res.status(500).json({ error: error.message || error.toString() });
-  }
-}
