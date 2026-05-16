@@ -121,23 +121,26 @@ Respond ONLY with raw JSON:
     if (!supabaseUrl || !supabaseKey) throw new Error("Missing Supabase keys.");
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // === 5. FETCH DATA (SMART ALIAS FALLBACK) ===
+    // === 5. FETCH DATA (SMART ALIAS & SPACE-PROOF FALLBACK) ===
     let { make, model } = aiData.vehicle_data;
     const { has_sensor, has_camera } = aiData.hardware_detected;
 
-    // Clean up the text so there are no accidental spaces
+    // Clean up the text so there are no accidental spaces at the edges
     make = make.trim().toUpperCase();
     model = model.trim().toUpperCase();
 
-    // First attempt: Search with the exact Make and Model the AI found
+    // THE SPACE-PROOF HACK: Creates a version with zero spaces (e.g., "SANTA FE" -> "SANTAFE")
+    const modelNoSpace = model.replace(/\s+/g, '');
+
+    // First attempt: Search exact Make, and check BOTH spaced and unspaced Models
     let { data: catalogMatch, error } = await supabase.from('glass_catalog')
       .select('*')
       .ilike('description', `%${make}%`)
-      .ilike('description', `%${model}%`);
+      .or(`description.ilike.%${model}%,description.ilike.%${modelNoSpace}%`);
 
     if (error) throw new Error("Failed to query catalog on first attempt.");
 
-    // If the first try found NOTHING, check if we need to use an abbreviation
+    // If the first try found NOTHING, check if we need to use an abbreviation (e.g., VOLKSWAGEN -> VW)
     if (!catalogMatch || catalogMatch.length === 0) {
         
         // THE B2B BRAND DICTIONARY
@@ -151,12 +154,12 @@ Respond ONLY with raw JSON:
 
         const abbreviation = brandDictionary[make];
         
-        // If an abbreviation exists for this brand, run a second search!
+        // If an abbreviation exists, run a second search using the Space-Proof logic!
         if (abbreviation) {
             const { data: fallbackMatch, error: fallbackError } = await supabase.from('glass_catalog')
               .select('*')
               .ilike('description', `%${abbreviation}%`)
-              .ilike('description', `%${model}%`);
+              .or(`description.ilike.%${model}%,description.ilike.%${modelNoSpace}%`);
               
             if (fallbackError) throw new Error("Failed to query catalog on fallback attempt.");
             
@@ -165,113 +168,89 @@ Respond ONLY with raw JSON:
         }
     }
 
-    // === 6. THE BULLETPROOF JAVASCRIPT FILTER ===
-    let exactMatches = [];
-    if (catalogMatch && catalogMatch.length > 0) {
-        exactMatches = catalogMatch.filter((row: any) => {
-            // Safely grab columns no matter what they are named
-            const xygCode = (row.xyg_code || row["XYG CODE"] || "").toUpperCase();
-            const rsCol = (row.rain_sensor || row.RS || row["SENSOR PLACE"] || "").toString();
-            const camCol = (row.camera || row["CAMERA PLACE"] || "").toString();
-            const desc = (row.description || row.DESCRIPTION || "").toUpperCase();
+    // === 6. THE STAGE-BASED JAVASCRIPT FILTER ===
+    const getCol = (rowObj: any, possibleNames: string[]) => {
+        const key = Object.keys(rowObj).find(k => possibleNames.includes(k.trim().toUpperCase()));
+        return key ? (rowObj[key] || "").toString().trim() : "";
+    };
 
-            // RULE 1: Front Windshield Only. If it doesn't say "LFW", throw it out!
-            if (!xygCode.includes("LFW")) return false;
+    // STAGE 1: Filter Front Windshields Only
+    let frontWindshields = catalogMatch ? catalogMatch.filter((row: any) => {
+        const xygCode = getCol(row, ["XYG CODE", "XYG_CODE"]).toUpperCase();
+        return xygCode.includes("LFW");
+    }) : [];
 
-            // RULE 2: Exact Hardware Matching
-            const rowHasSensor = rsCol.trim() !== "" && rsCol.trim() !== "-";
-            const rowHasCamera = camCol.trim() !== "" && camCol.trim() !== "-";
-
-            if (rowHasSensor !== has_sensor || rowHasCamera !== has_camera) return false;
-
-            // RULE 3: THE VIN YEAR FILTER (The Mastermind Logic)
-            if (exactYear > 0) {
-                // Look for generation ranges in the description (e.g., "2017-23" or "2020-")
-                const yearMatch = desc.match(/20(\d{2})-(?:20)?(\d{2})?/);
-                
-                if (yearMatch) {
-                    const startYear = parseInt("20" + yearMatch[1]);
-                    // If it says "2020-" with no end date, assume it goes up to next year
-                    const endYear = yearMatch[2] ? parseInt("20" + yearMatch[2]) : new Date().getFullYear() + 1;
-                    
-                    // If the decoded VIN year is outside this generation, delete this row!
-                    if (exactYear < startYear || exactYear > endYear) {
-                        return false; 
-                    }
-                }
+    // STAGE 2: The VIN Year Filter (Lock onto the correct generation!)
+    let generationMatches = frontWindshields.filter((row: any) => {
+        if (exactYear === 0) return true; // Skip if no VIN year decoded
+        const desc = getCol(row, ["DESCRIPTION"]).toUpperCase();
+        const yearMatch = desc.match(/20(\d{2})-(?:20)?(\d{2})?/);
+        if (yearMatch) {
+            const startYear = parseInt("20" + yearMatch[1]);
+            const endYear = yearMatch[2] ? parseInt("20" + yearMatch[2]) : new Date().getFullYear() + 1;
+            // The +/- 1 Year Tolerance
+            if (exactYear < (startYear - 1) || exactYear > (endYear + 1)) {
+                return false; 
             }
+        }
+        return true;
+    });
 
-            return true; // It survived all filters!
-        });
+    // STAGE 3: The Hardware Filter (The strict match)
+    let exactMatches = generationMatches.filter((row: any) => {
+        const rsCol = getCol(row, ["RS", "RAIN_SENSOR", "SENSOR PLACE"]);
+        const camCol = getCol(row, ["CAMERA", "CAMERA PLACE"]);
+        const rowHasSensor = rsCol !== "" && rsCol !== "-";
+        const rowHasCamera = camCol !== "" && camCol !== "-";
+        return rowHasSensor === has_sensor && rowHasCamera === has_camera;
+    });
 
-        // RULE 4: THE TIE-BREAKER (Fallback)
-        // If the VIN year wasn't found, or if there's still a tie, sort newest generation first.
-        exactMatches.sort((a, b) => {
-            const descA = (a.description || a.DESCRIPTION || "");
-            const descB = (b.description || b.DESCRIPTION || "");
-            return descB.localeCompare(descA); // Puts "2020-" before "2015-20"
-        });
-    }
+    // Sort Tie-Breakers (Newest generation first)
+    const sortFn = (a: any, b: any) => {
+        return getCol(b, ["DESCRIPTION"]).localeCompare(getCol(a, ["DESCRIPTION"]));
+    };
+    generationMatches.sort(sortFn);
+    exactMatches.sort(sortFn);
+
 
     // === 7. THE HUMAN-IN-THE-LOOP UI INJECTION ===
     if (exactMatches.length > 0) {
        const bestMatch = exactMatches[0];
-       const dbDescKey = Object.keys(bestMatch).find(k => k.trim().toUpperCase() === 'DESCRIPTION');
-       const finalDescription = dbDescKey ? bestMatch[dbDescKey] : "UNKNOWN DESCRIPTION";
+       const finalDescription = getCol(bestMatch, ["DESCRIPTION"]) || "UNKNOWN DESCRIPTION";
        
        // THE CROSSOVER DILEMMA DETECTOR 
-       // If the system is holding 2 or more windshields after all the math and AI filters...
        if (exactMatches.length > 1) {
            const secondMatch = exactMatches[1];
-           const secondDescKey = Object.keys(secondMatch).find(k => k.trim().toUpperCase() === 'DESCRIPTION');
-           const altDescription = secondDescKey ? secondMatch[secondDescKey] : "";
-           
-           // THE FIX: Cut the string at the "/" to ignore tiny tint/trim differences
+           const altDescription = getCol(secondMatch, ["DESCRIPTION"]) || "";
            const baseDescFinal = finalDescription.split('/')[0].trim();
            const baseDescAlt = altDescription.split('/')[0].trim();
            
-           // Check if the BASE generations are actually different (e.g., 2017-23 vs 2024-)
            if (baseDescFinal !== baseDescAlt) {
-               
-               // TRIGGER THE DILEMMA QUESTION TO THE UI
                aiData.primaryCode = "ACTION REQUIRED";
                aiData.descriptiveCode = `DILEMMA: Crossover year detected. Please verify body shape. Is this [${baseDescAlt}] or [${baseDescFinal}]?`;
-               
-               // Clear the generic vehicle data so the mechanic focuses on the question
                aiData.vehicle_data.make = "Multiple Generations Found";
                aiData.vehicle_data.model = "";
-               
-               return res.status(200).json(aiData); // Stop here and send to UI
+               return res.status(200).json(aiData); 
            }
        }
 
-       // --- IF NO DILEMMA, PROCEED NORMALLY ---
-       const dbEuroKey = Object.keys(bestMatch).find(k => k.trim().toUpperCase() === 'EUROCODE');
-       const dbNagsKey = Object.keys(bestMatch).find(k => k.trim().toUpperCase() === 'NAGS');
-
-       let finalCode;
-       if (referenceFormat === "NAGS") {
-           finalCode = dbNagsKey ? bestMatch[dbNagsKey] : null;
-       } else {
-           finalCode = dbEuroKey ? bestMatch[dbEuroKey] : null;
-       }
-       
-       aiData.primaryCode = finalCode || "CODE BLANK IN CATALOG";
+       // PROCEED NORMALLY
+       const dbEuroKey = getCol(bestMatch, ["EUROCODE"]);
+       const dbNagsKey = getCol(bestMatch, ["NAGS"]);
+       aiData.primaryCode = (referenceFormat === "NAGS" ? dbNagsKey : dbEuroKey) || "CODE BLANK IN CATALOG";
        aiData.descriptiveCode = finalDescription;
-       
-       // Overwrite the AI's generic Make/Model
        aiData.vehicle_data.make = finalDescription;
        aiData.vehicle_data.model = ""; 
 
-    } else if (catalogMatch && catalogMatch.length > 0) {
-       // Hardware mismatch fallback
-       const baseMatch = catalogMatch[0];
-       const dbDescKey = Object.keys(baseMatch).find(k => k.trim().toUpperCase() === 'DESCRIPTION');
-       const baseDescription = dbDescKey ? baseMatch[dbDescKey] : "UNKNOWN DESCRIPTION";
+    } else if (generationMatches.length > 0) {
+       // === THE FIX: HARDWARE MISMATCH FALLBACK ===
+       // If hardware fails, we STILL show the correct 2013-18 generation, NOT the Brazil one!
+       const baseMatch = generationMatches[0];
+       const baseDescription = getCol(baseMatch, ["DESCRIPTION"]) || "UNKNOWN DESCRIPTION";
 
        aiData.primaryCode = "NO EXACT MATCH";
-       aiData.descriptiveCode = "Hardware mismatch. Check manual catalog.";
-       aiData.vehicle_data.make = baseDescription;
+       aiData.descriptiveCode = `Hardware mismatch. AI saw Camera: ${has_camera}, Sensor: ${has_sensor}. Review manual catalog for:`;
+       aiData.vehicle_data.make = baseDescription; 
        aiData.vehicle_data.model = "";
 
     } else {
@@ -280,5 +259,9 @@ Respond ONLY with raw JSON:
        aiData.descriptiveCode = `Not found in catalog.`;
     }
 
-    // Send the final payload to the React UI
     return res.status(200).json(aiData);
+  } catch (error: any) {
+    console.error("Pro Decoder Error:", error);
+    return res.status(500).json({ error: error.message || error.toString() });
+  }
+}
