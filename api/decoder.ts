@@ -225,9 +225,12 @@ Respond ONLY with raw JSON:
            
            if (baseDescFinal !== baseDescAlt) {
                aiData.primaryCode = "ACTION REQUIRED";
-               aiData.descriptiveCode = `DILEMMA: Crossover year detected. Please verify body shape. Is this [${baseDescAlt}] or [${baseDescFinal}]?`;
-               aiData.vehicle_data.make = "Multiple Generations Found";
+               
+               // THE FIX: Push the question directly into the VEHICLE UI box!
+               aiData.vehicle_data.make = `DILEMMA: Is this [${baseDescAlt}] or [${baseDescFinal}]?`;
                aiData.vehicle_data.model = "";
+               aiData.vehicle_data.year = "";
+               
                return res.status(200).json(aiData); 
            }
        }
@@ -237,29 +240,27 @@ Respond ONLY with raw JSON:
        const dbNagsKey = getCol(bestMatch, ["NAGS"]);
        aiData.primaryCode = (referenceFormat === "NAGS" ? dbNagsKey : dbEuroKey) || "CODE BLANK IN CATALOG";
        aiData.descriptiveCode = finalDescription;
+       
        aiData.vehicle_data.make = finalDescription;
        aiData.vehicle_data.model = ""; 
 
     } else if (generationMatches.length > 0) {
-       // === THE FIX: HARDWARE MISMATCH FALLBACK ===
-       // If hardware fails, we STILL show the correct 2013-18 generation, NOT the Brazil one!
+       // HARDWARE MISMATCH FALLBACK
        const baseMatch = generationMatches[0];
        const baseDescription = getCol(baseMatch, ["DESCRIPTION"]) || "UNKNOWN DESCRIPTION";
 
-       aiData.primaryCode = "NO EXACT MATCH";
-       aiData.descriptiveCode = `Hardware mismatch. AI saw Camera: ${has_camera}, Sensor: ${has_sensor}. Review manual catalog for:`;
-       aiData.vehicle_data.make = baseDescription; 
+       aiData.primaryCode = "CHECK CATALOG";
+       
+       // THE FIX: Tell the mechanic exactly what hardware failed in the VEHICLE UI box!
+       aiData.vehicle_data.make = `HARDWARE MISMATCH: AI saw Camera: ${has_camera}, Sensor: ${has_sensor}. Please check manual catalog for ${baseDescription}`; 
        aiData.vehicle_data.model = "";
+       aiData.vehicle_data.year = "";
 
     } else {
        // Completely missing from DB
        aiData.primaryCode = "NO EXACT MATCH";
-       aiData.descriptiveCode = `Not found in catalog.`;
+       aiData.vehicle_data.make = `Vehicle not found in catalog.`;
+       aiData.vehicle_data.model = "";
     }
 
     return res.status(200).json(aiData);
-  } catch (error: any) {
-    console.error("Pro Decoder Error:", error);
-    return res.status(500).json({ error: error.message || error.toString() });
-  }
-}
