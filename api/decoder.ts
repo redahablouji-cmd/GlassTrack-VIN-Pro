@@ -39,6 +39,7 @@ GLASS STATUS: ${isShattered ? "MISSING/SHATTERED" : "INTACT"}
   "needsMorePhotos": false,
   "missingPhotoReason": null,
   "internalVerificationCheck": "Reasoning...",
+  "vin_10th_digit": "Extract EXACTLY the 10th character from the raw 17-digit VIN in the photo (e.g. 'P', 'R', 'D'). If no VIN is provided, leave this empty.",
   "decodedVIN": "The raw 17-digit string you extracted from the VIN photo, e.g. NLHBN51...",
   "vehicle_data": {
     "make": "UPPERCASE_MAKE",
@@ -92,31 +93,32 @@ GLASS STATUS: ${isShattered ? "MISSING/SHATTERED" : "INTACT"}
 
     if (aiData.needsMorePhotos) return res.status(200).json(aiData);
 
-    // === NEW: THE VIN YEAR CHEAT CODE (WITH FAILSAFE) ===
+    // === NEW: THE FOOLPROOF VIN YEAR EXTRACTOR ===
     let exactYear = 0;
-    
-    // Attempt 1: Extract from the raw 17-digit VIN if the AI provided it
-    if (aiData.decodedVIN && aiData.decodedVIN.length >= 10) {
-        const tenthDigit = aiData.decodedVIN.charAt(9).toUpperCase();
-        
+
+    // We now look directly at the dedicated 10th digit field the AI gave us
+    const tenthDigit = (aiData.vin_10th_digit || "").toString().trim().toUpperCase();
+
+    if (tenthDigit.length > 0) {
         const vinYearMap: Record<string, number> = {
             'Y': 2000, '1': 2001, '2': 2002, '3': 2003, '4': 2004, '5': 2005, '6': 2006, '7': 2007, '8': 2008, '9': 2009,
             'A': 2010, 'B': 2011, 'C': 2012, 'D': 2013, 'E': 2014, 'F': 2015, 'G': 2016, 'H': 2017, 'J': 2018, 'K': 2019,
             'L': 2020, 'M': 2021, 'N': 2022, 'P': 2023, 'R': 2024, 'S': 2025, 'T': 2026, 'V': 2027, 'W': 2028, 'X': 2029
         };
         
-        exactYear = vinYearMap[tenthDigit] || 0;
+        // Grab the very first letter of whatever it extracted to be safe
+        exactYear = vinYearMap[tenthDigit.charAt(0)] || 0;
     }
 
-    // Attempt 2 (THE FAILSAFE): If the raw VIN is missing, check if the AI already decoded the year into the vehicle_data block!
+    // THE FAILSAFE: If the VIN photo was blurry, check if the AI got a 4-digit year from somewhere else
     if (exactYear === 0 && aiData.vehicle_data && aiData.vehicle_data.year) {
-        const parsedYear = parseInt(aiData.vehicle_data.year.toString().replace(/\D/g, '')); // Strip out any text, leave only numbers
+        const parsedYear = parseInt(aiData.vehicle_data.year.toString().replace(/\D/g, ''));
         if (!isNaN(parsedYear) && parsedYear > 1980) {
             exactYear = parsedYear;
         }
     }
     
-    // Inject it so the downstream filters can use it
+    // Inject it so the downstream filters (and the UI) can use it
     if (exactYear > 0) {
         aiData.vehicle_data.year = exactYear.toString();
     }
