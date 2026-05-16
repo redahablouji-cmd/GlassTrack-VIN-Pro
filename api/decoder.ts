@@ -27,14 +27,12 @@ DAMAGE LOCATION: ${position.toUpperCase()}
 GLASS STATUS: ${isShattered ? "MISSING/SHATTERED" : "INTACT"}
 
 1. VIN Decoding: Extract Make and Model. Format BOTH as pure UPPERCASE (e.g., "HYUNDAI", "I20"). Do NOT extract the year.
-2. Hardware Verification (THE FRIT WINDOW RULE):
+2. Hardware Verification (THE NO-GUESSING FRIT WINDOW RULE):
    - You MUST cross-reference the interior mirror photo with the EXTERIOR top-center photo.
-   - THE JAWAZ / DASHCAM TRAP: Factory sensors and cameras ALWAYS have a precise, transparent, factory-cut "window" (circle, teardrop, or trapezoid) left bare in the black exterior frit band. 
-   - Aftermarket toll tags (like Jawaz) and dashcams are glued to the inside of the glass. They do NOT have a factory-cut window in the exterior black frit.
-   - Rain Sensor: Is there a distinct circular/teardrop clear window in the exterior black frit? If yes, true.
-   - Camera: Is there a distinct trapezoid/triangle clear window in the exterior black frit? If yes, true.
-   - If you see a bulky plastic box on the interior, but the exterior black frit is solid with no clear cutouts, explicitly state "Aftermarket tag detected, no exterior frit window" in your reasoning, and set sensor/camera to FALSE.
-
+   - THE JAWAZ / DASHCAM TRAP: Aftermarket toll tags and dashcams are glued to the inside. They do NOT have a factory-cut window in the exterior black frit. Ignore them.
+   - Rain Sensor: Is there a distinct circular/teardrop clear window in the exterior black frit? Set true/false.
+   - Camera: Is there a distinct trapezoid/triangle clear window in the exterior black frit? Set true/false.
+   - CRITICAL ZERO-ASSUMPTION RULE: You are strictly forbidden from "guessing" or "assuming" a sensor exists just because a camera is present (or vice versa). NEVER use the phrase "is typically integrated". If you do not physically see the separate, distinct factory cutout for the specific hardware, you MUST output false.
 Respond ONLY with raw JSON:
 {
   "needsMorePhotos": false,
