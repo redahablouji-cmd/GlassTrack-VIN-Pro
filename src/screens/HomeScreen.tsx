@@ -5,8 +5,9 @@ const FORENSIC_UI_MAP: any = {
   "Front Windshield": {
     intact: [
       { id: "photo1", title: "Photo A: The Sensor Depth (Interior Side-View)", desc: "45° angle from passenger seat. Focus on the rearview mirror physical mounting base (even if it's just bare plastic)." },
-      { id: "photo2", title: "Photo B: The Frit Window (Exterior Top Center)", desc: "45° angle looking down at the black glass edge where wipers rest. Keep the area in focus." },
-      { id: "photo3", title: "Photo C: The Silhouette & Tint (Full Exterior)", desc: "90° straight-on exterior. Ensure the entire shape of the front windshield fits clearly in the frame." }
+      { id: "photo2", title: "Photo B: The Wiper Edge (Bottom)", desc: "Stand outside and point the camera down at the bottom black edge of the glass where the wipers rest. Keep it focused to check for heater lines." },
+      { id: "photo3", title: "Photo C: The Frit Window (Top Close-Up)", desc: "THE CONTACT SHOT. Place your phone almost touching the exterior glass above the rearview mirror. Block the sky reflection so the camera can clearly see inside the black painted band." },
+      { id: "photo4", title: "Photo D: The Silhouette & Tint (Full Exterior)", desc: "90° straight-on exterior. Ensure the entire shape of the front windshield fits clearly in the frame." }
     ],
     shattered: [
       { id: "photo1", title: "Photo 1: The Headliner Harness", desc: "Close-up of the interior ceiling directly above the mirror. Keep the headliner/wires in focus." },

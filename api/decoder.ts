@@ -28,12 +28,13 @@ GLASS STATUS: ${isShattered ? "MISSING/SHATTERED" : "INTACT"}
 
 1. VIN Decoding: Extract Make and Model. Format BOTH as pure UPPERCASE (e.g., "HYUNDAI", "I20"). Do NOT extract the year.
 2. Hardware Verification (THE NO-GUESSING FRIT WINDOW RULE):
-   - You MUST cross-reference the interior mirror photo with the EXTERIOR top-center photo.
-   - THE JAWAZ / DASHCAM TRAP: Aftermarket toll tags and dashcams are glued to the inside. They do NOT have a factory-cut window in the exterior black frit. Ignore them.
-   - Rain Sensor: Is there a distinct circular/teardrop clear window in the exterior black frit? Set true/false.
-   - Camera: Is there a distinct trapezoid/triangle clear window in the exterior black frit? Set true/false.
-   - CRITICAL ZERO-ASSUMPTION RULE: You are strictly forbidden from "guessing" or "assuming" a sensor exists just because a camera is present (or vice versa). NEVER use the phrase "is typically integrated". If you do not physically see the separate, distinct factory cutout for the specific hardware, you MUST output false.
-Respond ONLY with raw JSON:
+   - You MUST cross-reference the interior mirror photo (Photo A) with the EXTERIOR TOP CLOSE-UP photo (Photo C).
+   - THE JAWAZ / DASHCAM TRAP: Aftermarket tags are glued to the inside. Ignore them.
+   - Rain Sensor: Look at Photo C. Is there a distinct circular/teardrop clear window in the exterior black frit? IN CLOSE-UP PHOTOS: Look for a circular purple/blue silicone gel pad or tiny optical diodes inside this cutout. Set true/false.
+   - Camera: Look at Photo C. Is there a distinct trapezoid/triangle clear window? Set true/false.
+   - Heated Wiper Grid: Look at Photo B (The Wiper Edge). Do you see distinct orange/brown heater lines in the black band at the bottom? Set true/false.
+   - CRITICAL ZERO-ASSUMPTION RULE: If glare completely obscures the black frit in Photo C and you cannot physically verify the cutouts, you MUST output false for the hidden hardware. Do not guess.
+   Respond ONLY with raw JSON:
 {
   "needsMorePhotos": false,
   "missingPhotoReason": null,

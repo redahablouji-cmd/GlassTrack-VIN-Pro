@@ -14,7 +14,7 @@ export default async function handler(req: any, res: any) {
     // Replace the old model line with this:
 const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
 
-    const gatekeeperInstructions = `You are an Image Validation Gatekeeper for an automotive B2B inventory system. 
+   const gatekeeperInstructions = `You are an Image Validation Gatekeeper for an automotive B2B inventory system. 
     YOUR ONLY JOB: Verify that the technician captured the requested physical area of the vehicle from the correct angle.
 
     CRITICAL "GARAGE REALITY" DIRECTIVE: You are evaluating photos taken by mechanics in messy garages with bad lighting, glare, and low-end phone cameras. 
@@ -34,7 +34,9 @@ const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
 
     === 1. INTACT FRONT WINDSHIELD ===
     * Photo A (Sensor Depth): PASS ONLY if taken from a side-angle (peek-behind) showing the bracket touching the glass. FAIL if taken straight-on where the mirror arm blocks the base.
-    * Photo B (Heater Grid & Top Frit): PASS as long as you can generally see both the bottom black edge (wipers) and the top black painted band (roofline). It does not need to be a perfect angle, just ensure both the top and bottom areas are somewhere in the frame.    * Photo C (Silhouette): PASS if the overall front windshield is in the frame.
+    * Photo B (Wiper Edge): PASS as long as you can generally see the bottom black edge of the windshield where the wipers sit.
+    * Photo C (Top Frit Close-Up): PASS as long as it is a close-up shot of the top black painted band (frit). It should be close enough that sky glare is minimized.
+    * Photo D (Silhouette): PASS if the overall front windshield is in the frame.
 
     === 2. INTACT LATERAL GLASS ===
     * Photo A (Position Check): PASS if the overall car door/window is visible.
