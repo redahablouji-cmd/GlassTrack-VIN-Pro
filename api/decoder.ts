@@ -39,8 +39,7 @@ GLASS STATUS: ${isShattered ? "MISSING/SHATTERED" : "INTACT"}
   "needsMorePhotos": false,
   "missingPhotoReason": null,
   "internalVerificationCheck": "Reasoning...",
-  "vin_10th_digit": "Extract EXACTLY the 10th character from the raw 17-digit VIN in the photo (e.g. 'P', 'R', 'D'). If no VIN is provided, leave this empty.",
-  "decodedVIN": "The raw 17-digit string you extracted from the VIN photo, e.g. NLHBN51...",
+  "raw_vin_string": "Transcribe the exact 17-character string from the VIN image (e.g. 'NLHBN51JBPZ356102'). Do NOT translate it. Do NOT write the car model. Just give me the raw 17 letters and numbers.",
   "vehicle_data": {
     "make": "UPPERCASE_MAKE",
     "model": "UPPERCASE_MODEL"
@@ -93,24 +92,31 @@ GLASS STATUS: ${isShattered ? "MISSING/SHATTERED" : "INTACT"}
 
     if (aiData.needsMorePhotos) return res.status(200).json(aiData);
 
-    // === NEW: THE FOOLPROOF VIN YEAR EXTRACTOR ===
+    // === NEW: THE BULLETPROOF VIN YEAR EXTRACTOR ===
     let exactYear = 0;
+    let debugVin = "MISSING";
 
-    // We now look directly at the dedicated 10th digit field the AI gave us
-    const tenthDigit = (aiData.vin_10th_digit || "").toString().trim().toUpperCase();
+    // 1. Grab the raw VIN string from the AI 
+    let rawVin = (aiData.raw_vin_string || aiData.decodedVIN || "").toUpperCase();
+    
+    // 2. Strip out all spaces, dashes, or words the AI might have accidentally added
+    rawVin = rawVin.replace(/[^A-Z0-9]/g, '');
+    debugVin = rawVin || "NONE";
 
-    if (tenthDigit.length > 0) {
+    // 3. Let JAVASCRIPT count to 10, not the AI
+    if (rawVin.length >= 10) {
+        const tenthDigit = rawVin.charAt(9); // In Javascript, index 9 is the 10th letter
+        
         const vinYearMap: Record<string, number> = {
             'Y': 2000, '1': 2001, '2': 2002, '3': 2003, '4': 2004, '5': 2005, '6': 2006, '7': 2007, '8': 2008, '9': 2009,
             'A': 2010, 'B': 2011, 'C': 2012, 'D': 2013, 'E': 2014, 'F': 2015, 'G': 2016, 'H': 2017, 'J': 2018, 'K': 2019,
             'L': 2020, 'M': 2021, 'N': 2022, 'P': 2023, 'R': 2024, 'S': 2025, 'T': 2026, 'V': 2027, 'W': 2028, 'X': 2029
         };
         
-        // Grab the very first letter of whatever it extracted to be safe
-        exactYear = vinYearMap[tenthDigit.charAt(0)] || 0;
+        exactYear = vinYearMap[tenthDigit] || 0;
     }
 
-    // THE FAILSAFE: If the VIN photo was blurry, check if the AI got a 4-digit year from somewhere else
+    // 4. THE FAILSAFE: If the VIN photo was blurry, check if the AI found a 4-digit year elsewhere
     if (exactYear === 0 && aiData.vehicle_data && aiData.vehicle_data.year) {
         const parsedYear = parseInt(aiData.vehicle_data.year.toString().replace(/\D/g, ''));
         if (!isNaN(parsedYear) && parsedYear > 1980) {
@@ -118,9 +124,14 @@ GLASS STATUS: ${isShattered ? "MISSING/SHATTERED" : "INTACT"}
         }
     }
     
-    // Inject it so the downstream filters (and the UI) can use it
+    // 5. INJECT INTO UI FOR DEBUGGING
+    if (!aiData.vehicle_data) aiData.vehicle_data = {};
+    
     if (exactYear > 0) {
         aiData.vehicle_data.year = exactYear.toString();
+    } else {
+        // If it fails, print exactly what the AI saw on the screen!
+        aiData.vehicle_data.year = `FAIL: AI saw [${debugVin}]`;
     }
 
     // === 4. CONNECT SUPABASE ===
@@ -134,8 +145,8 @@ GLASS STATUS: ${isShattered ? "MISSING/SHATTERED" : "INTACT"}
     const { has_sensor, has_camera } = aiData.hardware_detected;
 
     // Clean up the text so there are no accidental spaces at the edges
-    make = make.trim().toUpperCase();
-    model = model.trim().toUpperCase();
+    make = (make || "").toString().trim().toUpperCase();
+    model = (model || "").toString().trim().toUpperCase();
 
     // THE SPACE-PROOF HACK: Creates a version with zero spaces (e.g., "SANTA FE" -> "SANTAFE")
     const modelNoSpace = model.replace(/\s+/g, '');
