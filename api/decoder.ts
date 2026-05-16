@@ -39,7 +39,7 @@ GLASS STATUS: ${isShattered ? "MISSING/SHATTERED" : "INTACT"}
   "needsMorePhotos": false,
   "missingPhotoReason": null,
   "internalVerificationCheck": "Reasoning...",
-  "decodedVIN": "17-digit-VIN",
+  "decodedVIN": "The raw 17-digit string you extracted from the VIN photo, e.g. NLHBN51...",
   "vehicle_data": {
     "make": "UPPERCASE_MAKE",
     "model": "UPPERCASE_MODEL"
@@ -92,14 +92,13 @@ GLASS STATUS: ${isShattered ? "MISSING/SHATTERED" : "INTACT"}
 
     if (aiData.needsMorePhotos) return res.status(200).json(aiData);
 
-    // === NEW: THE VIN YEAR CHEAT CODE ===
+    // === NEW: THE VIN YEAR CHEAT CODE (WITH FAILSAFE) ===
     let exactYear = 0;
+    
+    // Attempt 1: Extract from the raw 17-digit VIN if the AI provided it
     if (aiData.decodedVIN && aiData.decodedVIN.length >= 10) {
-        // Grab the 10th character
         const tenthDigit = aiData.decodedVIN.charAt(9).toUpperCase();
         
-        // The Modern VIN Dictionary (2000 - 2030)
-        // Note: VINs never use I, O, Q, U, or Z.
         const vinYearMap: Record<string, number> = {
             'Y': 2000, '1': 2001, '2': 2002, '3': 2003, '4': 2004, '5': 2005, '6': 2006, '7': 2007, '8': 2008, '9': 2009,
             'A': 2010, 'B': 2011, 'C': 2012, 'D': 2013, 'E': 2014, 'F': 2015, 'G': 2016, 'H': 2017, 'J': 2018, 'K': 2019,
@@ -107,11 +106,19 @@ GLASS STATUS: ${isShattered ? "MISSING/SHATTERED" : "INTACT"}
         };
         
         exactYear = vinYearMap[tenthDigit] || 0;
-        
-        // Inject the decoded year into the UI so the mechanic sees it!
-        if (exactYear > 0) {
-            aiData.vehicle_data.year = exactYear.toString();
+    }
+
+    // Attempt 2 (THE FAILSAFE): If the raw VIN is missing, check if the AI already decoded the year into the vehicle_data block!
+    if (exactYear === 0 && aiData.vehicle_data && aiData.vehicle_data.year) {
+        const parsedYear = parseInt(aiData.vehicle_data.year.toString().replace(/\D/g, '')); // Strip out any text, leave only numbers
+        if (!isNaN(parsedYear) && parsedYear > 1980) {
+            exactYear = parsedYear;
         }
+    }
+    
+    // Inject it so the downstream filters can use it
+    if (exactYear > 0) {
+        aiData.vehicle_data.year = exactYear.toString();
     }
 
     // === 4. CONNECT SUPABASE ===
